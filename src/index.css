@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body { @apply bg-papel text-tinta font-sans antialiased; font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: 2px solid #33378f; outline-offset: 2px; }
+  input, select, textarea { font: inherit; }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primario { @apply btn bg-indigo text-white hover:bg-indigo-oscuro; }
+  .btn-sec { @apply btn border border-linea bg-white text-tinta hover:bg-indigo-claro; }
+  .btn-peligro { @apply btn border border-error/40 bg-white text-error hover:bg-error/10; }
+  .campo { @apply w-full rounded-md border border-linea bg-white px-3 py-2 text-sm placeholder:text-tinta/35 focus:border-indigo; }
+  .etiqueta { @apply mb-1 block text-sm font-medium text-tinta/80; }
+}
+
+/* Vista previa e impresión (Guardar como PDF) */
+#vista-previa .docx-wrapper { background: #e4e6f0 !important; padding: 16px !important; }
+@media print {
+  @page { margin: 0; }
+  body > *:not(#vista-previa) { display: none !important; }
+  #vista-previa { position: static !important; background: white !important; overflow: visible !important; }
+  #vista-previa .no-imprimir { display: none !important; }
+  #vista-previa .docx-wrapper { background: white !important; padding: 0 !important; }
+  #vista-previa .docx-wrapper > section.docx { box-shadow: none !important; margin: 0 !important; }
+}
