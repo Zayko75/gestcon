@@ -2,11 +2,11 @@
 
 Aplicación web para registrar los patrocinios deportivos y generar sus documentos Word (anexos, contrato e informes). Sustituye a la base de datos Access `GESTCON.accdb`.
 
-- **Sin servidor**: todo se ejecuta en el navegador. Los datos viven en un archivo SQLite dentro de una carpeta de red, que la aplicación lee y escribe directamente.
+- **Sin servidor**: todo se ejecuta en el navegador. Los datos viven en un archivo SQLite dentro de una carpeta que la aplicación lee y escribe directamente: una carpeta de **Google Drive** o una carpeta del ordenador o de la red.
 - **Un solo usuario**: no hay bloqueos. Si el archivo cambia fuera de la ventana (por ejemplo, la aplicación abierta en dos pestañas), la aplicación avisa antes de sobrescribirlo.
-- **Navegador**: Google Chrome o Microsoft Edge en un ordenador (necesitan la «File System Access API»; Firefox y Safari no sirven).
+- **Navegador**: con Google Drive, cualquier navegador moderno. Con una carpeta del ordenador o de red, Google Chrome o Microsoft Edge en un ordenador.
 
-Los datos y las plantillas **no están en este repositorio** ni salen del ordenador: el repositorio solo contiene el código de la aplicación.
+Los datos y las plantillas **no están en este repositorio**: el repositorio solo contiene el código de la aplicación. Con Google Drive, el navegador habla directamente con Google; no hay ningún servidor intermedio.
 
 ---
 
@@ -27,9 +27,55 @@ Los datos y las plantillas **no están en este repositorio** ni salen del ordena
 
 > Las páginas de GitHub Pages son públicas aunque el repositorio sea privado (salvo en planes Enterprise). No es un problema: la página solo contiene el programa, nunca datos.
 
-## Parte 2 · Preparar la carpeta de red (una sola vez)
+## Parte 2 · Conectar con Google Drive (una sola vez)
 
-Crea una carpeta en la unidad de red con esta estructura:
+### 2.1 Subir la carpeta a Drive
+En [drive.google.com](https://drive.google.com) arrastra la carpeta `Patrocinios` (con `datos.sqlite` y `plantillas/`) a **Mi unidad**.
+
+### 2.2 Crear el ID de cliente de Google
+Google exige que la aplicación tenga un «ID de cliente» para poder pedirte permiso. Es gratuito.
+
+1. Entra en [console.cloud.google.com](https://console.cloud.google.com) con tu cuenta de Google y crea un proyecto nuevo llamado `GESTCON`.
+2. Menú **APIs y servicios → Biblioteca**, busca **Google Drive API** y pulsa **Habilitar**.
+3. Menú **Google Auth Platform** (o **Pantalla de consentimiento de OAuth**) → **Comenzar**:
+   - Nombre de la aplicación: `GESTCON`; correo de asistencia: el tuyo.
+   - Público: **Externo**.
+   - Información de contacto: tu correo. Acepta y pulsa **Crear**.
+4. En **Público → Usuarios de prueba**, pulsa **Añadir usuarios** y añade tu correo de Gmail.
+5. En **Clientes → Crear cliente**:
+   - Tipo de aplicación: **Aplicación web**. Nombre: `GESTCON`.
+   - **Orígenes de JavaScript autorizados** (uno por línea, sin barra al final):
+     ```
+     https://TU_USUARIO.github.io
+     http://localhost:8080
+     http://localhost:5173
+     ```
+   - No hace falta rellenar los URI de redireccionamiento. Pulsa **Crear**.
+6. Copia el **ID de cliente** (termina en `.apps.googleusercontent.com`).
+
+### 2.3 Darle el ID a la aplicación
+Elige una de las dos formas:
+- **En la propia aplicación**: la primera vez, pégalo en el recuadro «ID de cliente de Google» y pulsa *Guardar*. Se recuerda en ese navegador.
+- **En GitHub** (sirve para cualquier navegador): en el repositorio, **Settings → Secrets and variables → Actions → pestaña Variables → New repository variable**, nombre `GOOGLE_CLIENT_ID` y como valor el ID. Después, en **Actions**, ejecuta de nuevo «Publicar en GitHub Pages» (*Run workflow*).
+
+### 2.4 Conectar
+1. Abre la aplicación, comprueba que el nombre de la carpeta es `Patrocinios` y pulsa **Conectar con Google Drive**.
+2. Elige tu cuenta. Como la aplicación es tuya y no está verificada por Google, aparecerá «Google no ha verificado esta aplicación»: pulsa **Configuración avanzada → Ir a GESTCON**.
+3. Marca la casilla de acceso a **Google Drive** y pulsa **Continuar**.
+4. Aparece el listado. Las carpetas `documentos` y `backups` se crean solas dentro de `Patrocinios` en tu Drive.
+
+Las siguientes veces basta con pulsar **Continuar con «Patrocinios»** y confirmar la cuenta.
+
+**A tener en cuenta con Google Drive**
+- La sesión de Google dura una hora. Si caduca mientras trabajas, arriba aparece **Reconectar con Google**: los cambios no se pierden, se guardan al reconectar.
+- Mientras la aplicación esté en modo «Prueba» en Google Cloud, Google puede pedirte que aceptes los permisos de nuevo cada semana. Para evitarlo, en **Público** pulsa **Publicar aplicación** (seguirá saliendo el aviso de aplicación no verificada, que puedes ignorar porque la aplicación es tuya).
+- La aplicación pide acceso a tu Drive para poder leer y escribir en la carpeta `Patrocinios`; solo toca esa carpeta.
+- Las copias de seguridad antiguas se mueven a la papelera de Drive, que se vacía sola a los 30 días.
+- Si abres la aplicación en dos ordenadores a la vez, avisará de que «El archivo de datos ha cambiado».
+
+## Parte 3 · Alternativa: carpeta del ordenador o de red
+
+En lugar de Google Drive se puede usar una carpeta del ordenador o de una unidad de red (solo con Chrome o Edge). Crea una carpeta con esta estructura:
 
 ```
 Patrocinios/
@@ -43,11 +89,12 @@ Patrocinios/
 - `documentos/` y `backups/` se crean solas si no existen.
 - Si empiezas sin datos, la aplicación ofrece crear un `datos.sqlite` vacío.
 
-## Parte 3 · Uso diario
+## Parte 4 · Uso diario
 
 **Abrir.** Entra en la dirección de la aplicación con Chrome o Edge.
-- La primera vez pulsa **Elegir carpeta de datos** y selecciona la carpeta `Patrocinios` de la unidad de red. Cuando el navegador pregunte, permite **ver y editar** archivos.
-- Las siguientes veces pulsa **Continuar con «Patrocinios»** y vuelve a permitir el acceso (el navegador lo pide en cada sesión por seguridad).
+- La primera vez conecta con Google Drive (Parte 2) o pulsa **Elegir carpeta** y selecciona la carpeta `Patrocinios` del ordenador (Parte 3).
+- Las siguientes veces pulsa **Continuar con «Patrocinios»** y confirma la cuenta de Google o el permiso de la carpeta.
+- **Cambiar carpeta** (arriba a la derecha) vuelve a la pantalla de conexión.
 - Al abrir se crea una copia de seguridad automática.
 
 **Listado.** Escribe en *Buscar* parte de la entidad, evento, CIF, municipio o nº de contrato. Filtra por anualidad o por estado (pendientes / tramitados). Pulsa en una fila para abrir su ficha. *Nuevo patrocinio* crea un registro.
@@ -79,7 +126,7 @@ Patrocinios/
 
 Para evitarlo, mantén la aplicación abierta en una sola pestaña.
 
-## Parte 4 · Modificar las plantillas
+## Parte 5 · Modificar las plantillas
 
 Las plantillas son documentos Word normales con etiquetas `{campo}` donde deben aparecer los datos. Se editan con Word en la carpeta `plantillas/` y los cambios se aplican la próxima vez que se genere un documento.
 
@@ -89,11 +136,15 @@ La lista de etiquetas, qué contiene cada una y cuáles usa cada plantilla está
 - Una etiqueta se puede repetir todas las veces que haga falta.
 - Una etiqueta que no existe sale en blanco.
 
-## Parte 5 · Problemas habituales
+## Parte 6 · Problemas habituales
 
 | Síntoma | Qué hacer |
 |---|---|
-| «Este navegador no puede abrir la carpeta de datos» | Usa Chrome o Edge en un ordenador. |
+| «El navegador bloqueó la ventana de Google» | Permite las ventanas emergentes para la dirección de la aplicación (icono en la barra de direcciones). |
+| Google muestra «Error 400: redirect_uri_mismatch» u «origin_mismatch» | La dirección de la aplicación no está en «Orígenes de JavaScript autorizados» (Parte 2.2, paso 5). Debe coincidir exactamente, sin barra final. |
+| Google muestra «Acceso bloqueado» / «access_denied» | Añade tu correo en **Público → Usuarios de prueba** (Parte 2.2, paso 4). |
+| «No hay ninguna carpeta llamada Patrocinios» | Comprueba el nombre exacto de la carpeta en Drive y que no está en la papelera. |
+| «Elegir carpeta» no aparece | La carpeta del ordenador solo funciona con Chrome o Edge en un ordenador; usa Google Drive. |
 | No deja continuar con la carpeta recordada | Pulsa «Permitir» cuando el navegador pida acceso. Si la unidad de red no está conectada, conéctala y vuelve a intentarlo. |
 | «Falta la plantilla … en la carpeta plantillas» | Copia ese archivo a `plantillas/` con el nombre exacto. |
 | El documento sale con huecos | Rellena en la ficha los datos que indica el aviso «Sin rellenar». |
@@ -118,7 +169,8 @@ src/
 ├── App.tsx                     rutas (#/, #/registro/ID, #/nuevo, #/copias)
 ├── components/                 pantallas: Listado, Ficha, PanelDocumentos, Copias, VistaPrevia…
 ├── lib/
-│   ├── fs.ts                   carpeta de red (File System Access API) y handle en IndexedDB
+│   ├── fs.ts                   interfaz de carpeta común; carpeta local (File System Access API)
+│   ├── drive.ts                carpeta de Google Drive (Google Identity Services + Drive API v3)
 │   ├── db.ts                   SQLite con sql.js
 │   ├── store.tsx               estado, guardado automático y control de conflictos (lastModified)
 │   ├── backups.ts              copias automáticas (últimas 30)

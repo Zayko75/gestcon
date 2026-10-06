@@ -1,8 +1,10 @@
 import { horaCorta } from '../lib/format'
 import { useStore } from '../lib/store'
+import { useAviso } from './ui'
 
 export function Cabecera({ ruta }: { ruta: string }) {
-  const { nombreCarpeta, guardado, elegirOtra } = useStore()
+  const { nombreCarpeta, guardado, cambiarCarpeta, origen, sesionCaducada, reconectar } = useStore()
+  const aviso = useAviso()
   const nav = (href: string, texto: string, activa: boolean) => (
     <a href={href} aria-current={activa ? 'page' : undefined}
       className={`rounded-md px-3 py-1.5 text-sm font-medium ${activa ? 'bg-white/15 text-white' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}>
@@ -27,8 +29,16 @@ export function Cabecera({ ruta }: { ruta: string }) {
             {guardado.estado === 'guardado' && (guardado.hora ? `Guardado a las ${horaCorta(guardado.hora)}` : 'Datos al día')}
             {guardado.estado === 'error' && (guardado.mensaje ?? 'Error al guardar')}
           </span>
-          <span className="hidden text-white/70 sm:inline" title="Carpeta de datos">Carpeta: {nombreCarpeta}</span>
-          <button onClick={elegirOtra} className="rounded-md border border-white/30 px-2.5 py-1 text-xs text-white/90 hover:bg-white/10">Cambiar carpeta</button>
+          {sesionCaducada && (
+            <button onClick={() => reconectar().catch((e) => aviso(e instanceof Error ? e.message : String(e), 'error'))}
+              className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-indigo-oscuro hover:bg-white/90">
+              Reconectar con Google
+            </button>
+          )}
+          <span className="hidden text-white/70 sm:inline" title="Carpeta de datos">
+            {origen === 'drive' ? 'Google Drive' : 'Carpeta'}: {nombreCarpeta}
+          </span>
+          <button onClick={cambiarCarpeta} className="rounded-md border border-white/30 px-2.5 py-1 text-xs text-white/90 hover:bg-white/10">Cambiar carpeta</button>
         </div>
       </div>
     </header>

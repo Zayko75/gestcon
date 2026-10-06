@@ -1,0 +1,7 @@
+services:
+  gestcon:
+    build: .
+    container_name: gestcon
+    ports:
+      - "8080:80"
+    restart: unless-stopped
