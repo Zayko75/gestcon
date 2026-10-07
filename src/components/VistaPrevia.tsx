@@ -46,16 +46,16 @@ export function VistaPrevia({ nombre, bytes, onCerrar }: { nombre: string; bytes
 
   return createPortal(
     <div id="vista-previa" className="fixed inset-0 z-50 overflow-auto bg-papel" role="dialog" aria-modal="true" aria-label={'Vista previa de ' + nombre}>
-      <div className="no-imprimir sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-linea bg-white px-4 py-2.5">
-        <span className="mr-auto truncate text-sm font-medium" title={nombre}>{nombre}</span>
-        <button className="btn-primario" onClick={imprimir} disabled={!listo}>Imprimir o guardar como PDF</button>
-        <button className="btn-sec" onClick={descargar}>Descargar .docx</button>
-        <button className="btn-sec" onClick={onCerrar}>Cerrar</button>
+      <div className="no-imprimir sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-noche px-4 py-3 text-white sm:px-6">
+        <span className="mr-auto min-w-0 truncate font-display text-[1.2rem] font-semibold" title={nombre}>{nombre}</span>
+        <button className="btn bg-white text-noche hover:bg-white/90" onClick={imprimir} disabled={!listo}>Imprimir o guardar como PDF</button>
+        <button className="btn border border-white/25 text-white hover:bg-white/10" onClick={descargar}>Descargar .docx</button>
+        <button className="btn border border-white/25 text-white hover:bg-white/10" onClick={onCerrar}>Cerrar</button>
       </div>
-      <p className="no-imprimir mx-auto mt-3 max-w-3xl px-4 text-xs text-tinta/60">
+      <p className="no-imprimir mx-auto mt-4 max-w-3xl px-4 text-center text-[0.84rem] text-tinta/60">
         Para obtener el PDF: pulsa «Imprimir o guardar como PDF» y en el destino elige «Guardar como PDF». La maquetación exacta es la del archivo Word guardado en la carpeta documentos.
       </p>
-      {error && <p role="alert" className="no-imprimir mx-auto mt-4 max-w-3xl rounded-md border border-error/30 bg-white p-3 text-sm text-error">{error}</p>}
+      {error && <p role="alert" className="no-imprimir mx-auto mt-4 max-w-3xl rounded-lg border border-error/30 bg-white p-3 text-[0.9rem] text-error">{error}</p>}
       <div ref={cont} />
     </div>,
     document.body,

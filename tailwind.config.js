@@ -4,16 +4,18 @@ export default {
   theme: {
     extend: {
       colors: {
-        tinta: '#1b1f3b',
-        indigo: { DEFAULT: '#33378f', oscuro: '#272a73', claro: '#e8eaf8' },
-        papel: '#f5f6fa',
-        linea: '#d9dcea',
-        ok: '#2b7a57',
-        aviso: '#a8650d',
-        error: '#b3312b',
+        tinta: '#17203d',
+        indigo: { DEFAULT: '#2c3487', oscuro: '#1f2566', claro: '#e7e9f6' },
+        noche: '#161b45',
+        papel: '#eef0f5',
+        linea: '#d6dae6',
+        ok: '#1e7a52',
+        aviso: '#a85f00',
+        error: '#b4322b',
       },
       fontFamily: {
-        sans: ['"Segoe UI"', 'system-ui', '-apple-system', 'Roboto', 'sans-serif'],
+        sans: ['Barlow', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
+        display: ['"Barlow Condensed"', 'Barlow', 'system-ui', 'sans-serif'],
       },
     },
   },

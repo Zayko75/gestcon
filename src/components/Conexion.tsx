@@ -3,25 +3,15 @@ import { clientId, clientIdDeConfiguracion, guardarClientId, type CandidatoDrive
 import { fechaHoraES } from '../lib/format'
 import { soportado } from '../lib/fs'
 import { useStore } from '../lib/store'
+import { Marca } from './Cabecera'
 
-function Marca() {
-  return (
-    <div className="flex items-center gap-3">
-      <svg width="40" height="40" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#33378f" /><path d="M8 22V10l8 8 8-8v12" fill="none" stroke="white" strokeWidth="3" strokeLinejoin="round" /></svg>
-      <div>
-        <div className="text-xl font-semibold leading-tight">GESTCON</div>
-        <div className="text-sm text-tinta/70">Gestión de patrocinios deportivos</div>
-      </div>
-    </div>
-  )
-}
-
-function IconoDrive() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+function IconoDrive({ blanco = false }: { blanco?: boolean }) {
+  const svg = (
+    <svg width={blanco ? 14 : 20} height={blanco ? 14 : 20} viewBox="0 0 24 24" aria-hidden="true">
       <path d="M8 3h8l6 10.5h-8z" fill="#fbbc04" /><path d="M2 13.5 8 3l4 7-6 10.5z" fill="#34a853" /><path d="M6 20.5h12l4-7H10z" fill="#4285f4" />
     </svg>
   )
+  return blanco ? <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white">{svg}</span> : svg
 }
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -38,13 +28,13 @@ function BloqueDrive() {
   if (editandoId) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-tinta/80">
+        <p className="text-[0.92rem] leading-relaxed text-tinta/75">
           Para conectar con Google Drive, pega aquí el <strong>ID de cliente</strong> de Google
           (termina en <code>.apps.googleusercontent.com</code>). Se configura una sola vez; las instrucciones están en el README.
         </p>
-        <label className="block text-sm">
-          <span className="text-tinta/70">ID de cliente de Google</span>
-          <input className="campo mt-1 w-full" value={id} onChange={(e) => setId(e.target.value)}
+        <label className="block">
+          <span className="etiqueta">ID de cliente de Google</span>
+          <input className="campo" value={id} onChange={(e) => setId(e.target.value)}
             placeholder="123456789-abc.apps.googleusercontent.com" />
         </label>
         <div className="flex gap-2">
@@ -75,25 +65,25 @@ function BloqueDrive() {
 
   return (
     <div className="space-y-3">
-      <label className="block text-sm">
-        <span className="text-tinta/70">Nombre de la carpeta en tu Google Drive</span>
-        <input className="campo mt-1 w-full" value={nombre} onChange={(e) => setNombre(e.target.value)}
+      <label className="block">
+        <span className="etiqueta">Nombre de la carpeta en tu Google Drive</span>
+        <input className="campo" value={nombre} onChange={(e) => setNombre(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && nombre.trim() && !buscando && buscar()} />
       </label>
-      {error && <p role="alert" className="rounded-md border border-error/30 bg-error/5 p-3 text-sm text-error">{error}</p>}
-      <button className="btn-primario inline-flex items-center gap-2" disabled={!nombre.trim() || buscando} onClick={buscar}>
-        <IconoDrive /> {buscando ? 'Conectando…' : 'Conectar con Google Drive'}
+      {error && <p role="alert" className="rounded-lg border border-error/30 bg-error/[.06] px-3 py-2.5 text-[0.9rem] text-error">{error}</p>}
+      <button className="btn-primario w-full sm:w-auto" disabled={!nombre.trim() || buscando} onClick={buscar}>
+        <IconoDrive blanco /> {buscando ? 'Conectando…' : 'Conectar con Google Drive'}
       </button>
 
       {candidatos && candidatos.length === 0 && (
-        <p className="text-sm text-aviso">
+        <p className="text-[0.9rem] text-aviso">
           No hay ninguna carpeta llamada «{nombre.trim()}» en tu Google Drive. Comprueba el nombre o súbela primero a Drive.
         </p>
       )}
       {candidatos && candidatos.length > 1 && (
         <div className="space-y-2">
-          <p className="text-sm">Hay varias carpetas con ese nombre. Elige cuál usar:</p>
-          <ul className="divide-y divide-linea rounded-md border border-linea">
+          <p className="text-[0.92rem]">Hay varias carpetas con ese nombre. Elige cuál usar:</p>
+          <ul className="divide-y divide-linea overflow-hidden rounded-lg border border-linea">
             {candidatos.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                 <div>
@@ -109,7 +99,7 @@ function BloqueDrive() {
         </div>
       )}
       {!clientIdDeConfiguracion() && (
-        <button className="text-xs text-tinta/60 underline" onClick={() => setEditandoId(true)}>Cambiar el ID de cliente de Google</button>
+        <button className="text-[0.82rem] text-tinta/55 underline underline-offset-4 hover:text-tinta" onClick={() => setEditandoId(true)}>Cambiar el ID de cliente de Google</button>
       )}
     </div>
   )
@@ -120,65 +110,88 @@ export function PantallaConexion() {
   const local = soportado()
 
   return (
-    <main className="flex min-h-full items-center justify-center p-6">
-      <div className="w-full max-w-xl rounded-xl border border-linea bg-white p-8 shadow-sm">
-        <Marca />
+    <main className="min-h-full lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <aside className="relative flex flex-col justify-between gap-10 overflow-hidden bg-noche px-6 py-8 text-white sm:px-10 lg:min-h-full lg:px-12 lg:py-12">
+        <Marca claro />
+        <div className="relative max-lg:hidden">
+          <p className="max-w-md font-display text-[2.9rem] font-semibold leading-[1.02] tracking-[-0.01em]">
+            Cada patrocinio, con su expediente completo.
+          </p>
+          <p className="mt-5 max-w-sm leading-relaxed text-white/65">
+            Datos de la entidad y del evento, anexos, contrato e informes listos para firmar. Los datos se guardan en tu carpeta, no en ningún servidor.
+          </p>
+        </div>
+        <p className="relative text-[0.82rem] text-white/45 max-lg:hidden">Servicio de Deportes, Diputación de Málaga</p>
+      </aside>
 
-        {fase === 'cargando' ? (
-          <p className="mt-8 text-sm text-tinta/80" role="status">Abriendo los datos y creando la copia de seguridad…</p>
-        ) : fase === 'sin-bd' ? (
-          <div className="mt-8 space-y-4">
-            <p className="text-sm">
-              En la carpeta <strong>{nombreCarpeta}</strong>{dirRaiz?.tipo === 'drive' ? ' de Google Drive' : ''} no hay ningún archivo <code>datos.sqlite</code>.
-            </p>
-            <p className="text-sm text-tinta/70">
-              Si ya tienes el archivo, cópialo a esa carpeta y pulsa «Volver a comprobar». Si empiezas desde cero, crea una base de datos vacía.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button className="btn-primario" onClick={crearBDVacia}>Crear base de datos vacía</button>
-              <button className="btn-sec" onClick={continuar}>Volver a comprobar</button>
+      <div className="flex justify-center px-5 py-10 sm:px-10 lg:items-center lg:py-16">
+        <div className="w-full max-w-lg">
+          {fase === 'cargando' ? (
+            <div role="status">
+              <h1 className="titulo">Abriendo los datos…</h1>
+              <p className="mt-3 text-tinta/65">Se está leyendo <code>datos.sqlite</code> y creando la copia de seguridad del día.</p>
             </div>
-          </div>
-        ) : (
-          <div className="mt-8 space-y-6">
-            {error && (
-              <p role="alert" className="rounded-md border border-error/30 bg-error/5 p-3 text-sm text-error">{error}</p>
-            )}
-
-            {carpetaGuardada && (carpetaGuardada.tipo === 'drive' || local) && (
-              <div className="space-y-2">
-                <button className="btn-primario inline-flex items-center gap-2" onClick={continuar}>
-                  {carpetaGuardada.tipo === 'drive' && <IconoDrive />}
-                  Continuar con «{carpetaGuardada.nombre}»
-                </button>
-                <p className="text-xs text-tinta/60">
-                  {carpetaGuardada.tipo === 'drive'
-                    ? 'Carpeta de Google Drive. Google te pedirá confirmar tu cuenta.'
-                    : 'Carpeta del ordenador. El navegador te pedirá permiso para usarla.'}
-                </p>
+          ) : fase === 'sin-bd' ? (
+            <div className="space-y-5">
+              <h1 className="titulo">No hay base de datos</h1>
+              <p className="leading-relaxed text-tinta/75">
+                En la carpeta <strong>{nombreCarpeta}</strong>{dirRaiz?.tipo === 'drive' ? ' de Google Drive' : ''} no hay ningún archivo <code>datos.sqlite</code>.
+                Si ya lo tienes, cópialo ahí y pulsa «Volver a comprobar». Si empiezas desde cero, crea una base de datos vacía.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button className="btn-primario" onClick={crearBDVacia}>Crear base de datos vacía</button>
+                <button className="btn-sec" onClick={continuar}>Volver a comprobar</button>
               </div>
-            )}
+            </div>
+          ) : (
+            <div className="space-y-8">
+              <div>
+                <h1 className="titulo">Abre tus datos</h1>
+                <p className="mt-2 leading-relaxed text-tinta/65">Elige dónde está la carpeta con <code className="text-[0.9em]">datos.sqlite</code> y las plantillas.</p>
+              </div>
 
-            <section className="space-y-3 rounded-lg border border-linea p-4">
-              <h2 className="flex items-center gap-2 text-sm font-semibold"><IconoDrive /> Google Drive</h2>
-              <BloqueDrive />
-            </section>
-
-            <section className="space-y-3 rounded-lg border border-linea p-4">
-              <h2 className="text-sm font-semibold">Carpeta del ordenador o de red</h2>
-              {local ? (
-                <>
-                  <p className="text-sm text-tinta/70">
-                    Elige la carpeta donde están <code>datos.sqlite</code> y <code>plantillas</code>.
-                  </p>
-                  <button className="btn-sec" onClick={elegirOtra}>Elegir carpeta</button>
-                </>
-              ) : (
-                <p className="text-sm text-tinta/70">Solo disponible con Google Chrome o Microsoft Edge en un ordenador.</p>
+              {error && (
+                <p role="alert" className="rounded-lg border border-error/30 bg-error/[.06] px-4 py-3 text-[0.92rem] text-error">{error}</p>
               )}
-            </section>
-          </div>
-        )}
+
+              {carpetaGuardada && (carpetaGuardada.tipo === 'drive' || local) && (
+                <div className="rounded-xl border border-indigo/25 bg-white p-5">
+                  <p className="text-[0.88rem] text-tinta/60">Última carpeta usada</p>
+                  <button className="btn-primario mt-3 w-full !py-3 text-base" onClick={continuar}>
+                    {carpetaGuardada.tipo === 'drive' && <IconoDrive blanco />}
+                    Continuar con «{carpetaGuardada.nombre}»
+                  </button>
+                  <p className="mt-3 text-[0.82rem] text-tinta/55">
+                    {carpetaGuardada.tipo === 'drive'
+                      ? 'Carpeta de Google Drive. Google te pedirá confirmar tu cuenta.'
+                      : 'Carpeta del ordenador. El navegador te pedirá permiso para usarla.'}
+                  </p>
+                </div>
+              )}
+
+              <section className="space-y-4">
+                <h2 className="flex items-center gap-2.5 font-display text-[1.4rem] font-semibold"><IconoDrive /> Google Drive</h2>
+                <BloqueDrive />
+              </section>
+
+              <div className="flex items-center gap-4 text-[0.85rem] text-tinta/45" aria-hidden="true">
+                <span className="h-px flex-1 bg-linea" />o bien<span className="h-px flex-1 bg-linea" />
+              </div>
+
+              <section className="space-y-3">
+                <h2 className="font-display text-[1.4rem] font-semibold">Carpeta del ordenador o de red</h2>
+                {local ? (
+                  <>
+                    <p className="text-[0.92rem] text-tinta/65">Para trabajar con una carpeta de este ordenador o de una unidad de red.</p>
+                    <button className="btn-sec" onClick={elegirOtra}>Elegir carpeta</button>
+                  </>
+                ) : (
+                  <p className="text-[0.92rem] text-tinta/65">Solo disponible con Google Chrome o Microsoft Edge en un ordenador.</p>
+                )}
+              </section>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   )

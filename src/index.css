@@ -4,22 +4,45 @@
 
 @layer base {
   html, body, #root { height: 100%; }
-  body { @apply bg-papel text-tinta font-sans antialiased; font-variant-numeric: tabular-nums; }
-  :focus-visible { outline: 2px solid #33378f; outline-offset: 2px; }
+  body { @apply bg-papel text-tinta font-sans antialiased; font-size: 16px; font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: 2px solid #2c3487; outline-offset: 2px; border-radius: 4px; }
   input, select, textarea { font: inherit; }
+  h1, h2, h3 { text-wrap: balance; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 }
 
 @layer components {
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-primario { @apply btn bg-indigo text-white hover:bg-indigo-oscuro; }
-  .btn-sec { @apply btn border border-linea bg-white text-tinta hover:bg-indigo-claro; }
-  .btn-peligro { @apply btn border border-error/40 bg-white text-error hover:bg-error/10; }
-  .campo { @apply w-full rounded-md border border-linea bg-white px-3 py-2 text-sm placeholder:text-tinta/35 focus:border-indigo; }
-  .etiqueta { @apply mb-1 block text-sm font-medium text-tinta/80; }
+  /* Botones */
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-[0.9rem] font-semibold leading-5 transition-colors disabled:cursor-not-allowed disabled:opacity-45; }
+  .btn-primario { @apply btn bg-indigo text-white shadow-[0_1px_0_rgba(23,32,61,.25)] hover:bg-indigo-oscuro; }
+  .btn-sec { @apply btn border border-linea bg-white text-tinta hover:border-indigo/40 hover:bg-indigo-claro/60; }
+  .btn-peligro { @apply btn border border-error/35 bg-white text-error hover:bg-error/[.07]; }
+  .btn-texto { @apply btn px-2 text-indigo hover:bg-indigo-claro; }
+  .btn-sm { @apply px-3 py-1.5 text-[0.84rem]; }
+
+  /* Formularios */
+  .campo { @apply w-full rounded-lg border border-linea bg-white px-3 py-2 text-[0.95rem] text-tinta transition-colors placeholder:text-tinta/35 hover:border-tinta/25 focus:border-indigo focus:outline-none focus:ring-[3px] focus:ring-indigo/15; }
+  textarea.campo { @apply leading-snug; }
+  .etiqueta { @apply mb-1.5 block text-[0.84rem] font-medium text-tinta/70; }
+
+  /* Dorsal: el nº de contrato, como el dorsal de una carrera */
+  .dorsal { @apply relative inline-flex flex-col items-center justify-center overflow-hidden rounded-[5px] border border-tinta/15 bg-white font-display font-bold leading-none text-tinta shadow-[0_1px_0_rgba(23,32,61,.08)]; }
+  .dorsal::before { content: ''; @apply absolute inset-x-0 top-0 h-[5px] bg-indigo; }
+  .dorsal-vacio { @apply border-dashed text-tinta/30 shadow-none; }
+  .dorsal-vacio::before { @apply bg-tinta/15; }
+
+  /* Control segmentado */
+  .segmento { @apply inline-flex rounded-lg border border-linea bg-white p-0.5; }
+  .segmento button { @apply rounded-md px-3 py-1.5 text-[0.88rem] font-medium text-tinta/65 transition-colors hover:text-tinta; }
+  .segmento button[aria-pressed='true'] { @apply bg-indigo text-white; }
+
+  /* Título de pantalla */
+  .titulo { @apply font-display text-[2.1rem] font-semibold leading-[1.05] tracking-[-0.01em] text-tinta sm:text-[2.5rem]; }
 }
 
 /* Vista previa e impresión (Guardar como PDF) */
-#vista-previa .docx-wrapper { background: #e4e6f0 !important; padding: 16px !important; }
+#vista-previa .docx-wrapper { background: transparent !important; padding: 16px 16px 48px !important; }
+#vista-previa .docx-wrapper > section.docx { box-shadow: 0 1px 2px rgba(23,32,61,.08), 0 12px 32px -16px rgba(23,32,61,.35) !important; }
 @media print {
   @page { margin: 0; }
   body > *:not(#vista-previa) { display: none !important; }

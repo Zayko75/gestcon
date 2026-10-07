@@ -47,7 +47,7 @@ function Contenido() {
   return (
     <>
       <Cabecera ruta={ruta} />
-      {pantalla}
+      <div className="lg:pl-64">{pantalla}</div>
       <DialogoConflicto />
     </>
   )

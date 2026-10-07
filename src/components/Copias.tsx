@@ -48,45 +48,40 @@ export function Copias() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-5 py-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <main className="mx-auto max-w-4xl px-4 pb-16 pt-7 sm:px-8 lg:pt-10">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div>
-          <h1 className="text-2xl font-semibold">Copias de seguridad</h1>
-          <p className="mt-1 max-w-xl text-sm text-tinta/70">
+          <h1 className="titulo">Copias de seguridad</h1>
+          <p className="mt-2 max-w-xl text-tinta/65">
             Cada vez que abres la aplicación se guarda una copia de los datos en la carpeta «backups». Se conservan las últimas {MAX_COPIAS}.
           </p>
         </div>
-        <button className="btn-primario" onClick={crear} disabled={ocupado}>Crear copia ahora</button>
+        <button className="btn-primario" onClick={crear} disabled={ocupado}>{ocupado ? 'Creando copia…' : 'Crear copia ahora'}</button>
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-lg border border-linea bg-white">
+      <div className="mt-8 overflow-hidden rounded-xl border border-linea bg-white">
         {copias === null ? (
-          <p className="p-6 text-sm text-tinta/70">Leyendo la carpeta…</p>
+          <p className="p-6 text-tinta/65">Leyendo la carpeta…</p>
         ) : copias.length === 0 ? (
-          <p className="p-6 text-sm text-tinta/70">Todavía no hay copias. Pulsa «Crear copia ahora».</p>
+          <div className="px-6 py-14 text-center">
+            <p className="font-display text-2xl font-semibold">Aún no hay copias</p>
+            <p className="mt-2 text-tinta/65">Se creará una la próxima vez que abras la aplicación, o ahora con «Crear copia ahora».</p>
+          </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-linea bg-papel text-left text-tinta/80">
-              <tr>
-                <th scope="col" className="px-4 py-2 font-medium">Fecha</th>
-                <th scope="col" className="px-4 py-2 font-medium">Origen</th>
-                <th scope="col" className="px-4 py-2 font-medium">Tamaño</th>
-                <th scope="col" className="px-4 py-2"><span className="sr-only">Acciones</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {copias.map((c) => (
-                <tr key={c.nombre} className="border-b border-linea/70 last:border-0">
-                  <td className="px-4 py-2.5">{fechaHoraES(c.fecha)}</td>
-                  <td className="px-4 py-2.5 text-tinta/80">{MOTIVOS[c.motivo] ?? c.motivo}</td>
-                  <td className="px-4 py-2.5 text-tinta/80">{tamanoLegible(c.tamano)}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <button className="btn-sec !px-2.5 !py-1.5" onClick={() => setARestaurar(c)}>Restaurar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul>
+            {copias.map((c, k) => (
+              <li key={c.nombre} className="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-linea/70 px-5 py-3.5 last:border-0">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2.5">
+                    <span className="font-display text-[1.2rem] font-semibold">{fechaHoraES(c.fecha)}</span>
+                    {k === 0 && <span className="whitespace-nowrap rounded-full bg-indigo-claro px-2 py-0.5 text-[0.75rem] font-semibold text-indigo">La más reciente</span>}
+                  </div>
+                  <div className="text-[0.86rem] text-tinta/55">{MOTIVOS[c.motivo] ?? c.motivo}, {tamanoLegible(c.tamano)}</div>
+                </div>
+                <button className="btn-sec btn-sm" onClick={() => setARestaurar(c)}>Restaurar</button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
