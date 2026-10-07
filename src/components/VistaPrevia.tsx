@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { renderAsync } from 'docx-preview'
+import { ajustarMaquetacion } from '../lib/maquetacion'
 
 export function VistaPrevia({ nombre, bytes, onCerrar }: { nombre: string; bytes: Uint8Array; onCerrar: () => void }) {
   const cont = useRef<HTMLDivElement>(null)
@@ -10,8 +11,13 @@ export function VistaPrevia({ nombre, bytes, onCerrar }: { nombre: string; bytes
   useEffect(() => {
     if (!cont.current) return
     cont.current.innerHTML = ''
-    renderAsync(new Blob([bytes as unknown as BlobPart]), cont.current, undefined, { className: 'docx', inWrapper: true, breakPages: true })
-      .then(() => setListo(true))
+    const destino = cont.current
+    // experimental: activa las tabulaciones (títulos centrados con tabuladores, como «ANEXO I»)
+    renderAsync(new Blob([bytes as unknown as BlobPart]), destino, undefined, { className: 'docx', inWrapper: true, breakPages: true, experimental: true })
+      .then(() => {
+        ajustarMaquetacion(destino, bytes)
+        setListo(true)
+      })
       .catch((e) => setError('No se pudo mostrar la vista previa: ' + (e instanceof Error ? e.message : String(e))))
   }, [bytes])
 

@@ -28,3 +28,7 @@
   #vista-previa .docx-wrapper { background: white !important; padding: 0 !important; }
   #vista-previa .docx-wrapper > section.docx { box-shadow: none !important; margin: 0 !important; }
 }
+
+/* Vista previa: dentro de una tabla, las tabulaciones de docx-preview (modo experimental)
+   calculan su ancho respecto a la página y desbordan la celda; ahí se dejan con el ancho de tabulación por defecto de Word (1,25 cm). */
+#vista-previa td .docx-tab-stop { word-spacing: normal !important; display: inline-block; width: 1.25cm; }
