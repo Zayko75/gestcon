@@ -56,7 +56,7 @@ Google exige que la aplicación tenga un «ID de cliente» para poder pedirte pe
 ### 2.3 Darle el ID a la aplicación
 Elige una de las dos formas:
 - **En la propia aplicación**: la primera vez, pégalo en el recuadro «ID de cliente de Google» y pulsa *Guardar*. Se recuerda en ese navegador.
-- **En GitHub** (sirve para cualquier navegador): en el repositorio, **Settings → Secrets and variables → Actions → pestaña Variables → New repository variable**, nombre `GOOGLE_CLIENT_ID` y como valor el ID. Después, en **Actions**, ejecuta de nuevo «Publicar en GitHub Pages» (*Run workflow*).
+- **En el repositorio** (sirve para cualquier navegador): escribe el ID en el archivo `.env.production` (`VITE_GOOGLE_CLIENT_ID=...`) y súbelo; la publicación se repite sola.
 
 ### 2.4 Conectar
 1. Abre la aplicación, comprueba que el nombre de la carpeta es `Patrocinios` y pulsa **Conectar con Google Drive**.
