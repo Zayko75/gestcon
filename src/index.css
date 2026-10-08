@@ -41,15 +41,24 @@
 }
 
 /* Vista previa e impresión (Guardar como PDF) */
+/* El documento se pinta con las medidas de Word, sin heredar los estilos de la aplicación
+   (interlineado 1,5, box-sizing de Tailwind, tipografía Barlow…) */
+#vista-previa .docx-wrapper * { box-sizing: content-box; }
+#vista-previa .docx-wrapper > section.docx { box-sizing: border-box; } /* como en docx-preview: la página incluye sus márgenes */
+#vista-previa section.docx { line-height: normal; font-family: 'Times New Roman', serif; font-size: 10pt; font-variant-numeric: normal; color: #000; }
+#vista-previa section.docx img { display: inline; max-width: none; }
 #vista-previa .docx-wrapper { background: transparent !important; padding: 16px 16px 48px !important; }
 #vista-previa .docx-wrapper > section.docx { box-shadow: 0 1px 2px rgba(23,32,61,.08), 0 12px 32px -16px rgba(23,32,61,.35) !important; }
 @media print {
-  @page { margin: 0; }
   body > *:not(#vista-previa) { display: none !important; }
   #vista-previa { position: static !important; background: white !important; overflow: visible !important; }
   #vista-previa .no-imprimir { display: none !important; }
   #vista-previa .docx-wrapper { background: white !important; padding: 0 !important; }
   #vista-previa .docx-wrapper > section.docx { box-shadow: none !important; margin: 0 !important; }
+  /* Cada página de la vista previa es una hoja A4: márgenes de la plantilla y cabecera en todas */
+  @page { size: A4; margin: 0; }
+  #vista-previa .docx-wrapper > section.docx { height: 297mm !important; min-height: 0 !important; overflow: hidden; break-after: page; break-inside: avoid; }
+  #vista-previa .docx-wrapper > section.docx:last-child { break-after: auto; }
 }
 
 /* Vista previa: dentro de una tabla, las tabulaciones de docx-preview (modo experimental)
