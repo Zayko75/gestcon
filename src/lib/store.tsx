@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Database } from 'sql.js'
-import type { Copia, DatosPatrocinio, Patrocinio } from '../types'
+import type { Copia, DatosPatrocinio, Entidad, InformeMigracion, Patrocinio } from '../types'
 import * as bd from './db'
 import * as fs from './fs'
 import * as drive from './drive'
-import { crearCopia, leerCopia, listarCopias } from './backups'
+import { VERSION_ESQUEMA } from './schema'
+import { copiaDiaria, crearCopia, leerCopia, listarCopias } from './backups'
 
 type Fase = 'inicio' | 'cargando' | 'sin-bd' | 'listo' | 'error'
 export type Origen = 'local' | 'drive'
@@ -20,6 +21,9 @@ interface Ctx {
   origen: Origen | null
   sesionCaducada: boolean
   registros: Patrocinio[]
+  entidades: Entidad[]
+  informeMigracion: InformeMigracion | null
+  cerrarInforme: () => void
   guardado: EstadoGuardado
   conflicto: boolean
   ivaPct: number
@@ -53,6 +57,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [conexion, setConexion] = useState<fs.ConexionGuardada | null>(null)
   const [sesionCaducada, setSesionCaducada] = useState(false)
   const [registros, setRegistros] = useState<Patrocinio[]>([])
+  const [entidades, setEntidades] = useState<Entidad[]>([])
+  const [informeMigracion, setInformeMigracion] = useState<InformeMigracion | null>(null)
   const [guardado, setGuardado] = useState<EstadoGuardado>({ estado: 'guardado' })
   const [conflicto, setConflicto] = useState(false)
   const [ivaPct, setIvaPct] = useState(21)
@@ -70,7 +76,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const refrescar = useCallback(() => {
-    if (db.current) setRegistros(bd.listar(db.current))
+    if (!db.current) return
+    setRegistros(bd.listar(db.current))
+    setEntidades(bd.listarEntidades(db.current))
   }, [])
 
   /** Abre datos.sqlite de la carpeta, hace la copia automática y lista los registros */
@@ -95,10 +103,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       db.current?.close()
       db.current = nueva
       ultimoMod.current = marca
+      // Archivo de una versión anterior: copia de seguridad y actualización automática
+      if (bd.versionEsquema(nueva) < VERSION_ESQUEMA) {
+        await crearCopia(dirBackups, datos, 'antes-de-actualizar')
+        const informe = bd.migrar(nueva)
+        ultimoMod.current = await fs.escribirBytes(h, 'datos.sqlite', bd.exportar(nueva))
+        if (informe) setInformeMigracion(informe)
+      }
       setIvaPct(Number(bd.leerConfig(nueva, 'tipo_iva', '21')) || 21)
-      // Copia automática al abrir (se conservan las últimas 30)
+      // Copia automática: una al día, la primera vez que se abre (se conservan las de los últimos 30 días)
       try {
-        await crearCopia(dirBackups, datos)
+        await copiaDiaria(dirBackups, bd.exportar(nueva))
       } catch (e) {
         console.warn('No se pudo crear la copia automática', e)
       }
@@ -274,13 +289,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [guardado.estado])
 
   const valor = useMemo<Ctx>(() => ({
-    fase, error, nombreCarpeta, registros, guardado, conflicto, ivaPct, dirRaiz, sesionCaducada,
+    fase, error, nombreCarpeta, registros, entidades, informeMigracion, cerrarInforme: () => setInformeMigracion(null), guardado, conflicto, ivaPct, dirRaiz, sesionCaducada,
     carpetaGuardada: conexion ? { tipo: conexion.tipo, nombre: conexion.nombre } : null,
     origen: dirRaiz?.tipo ?? null,
     continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar,
     crearBDVacia, crear, actualizar, eliminar, resolverConflicto,
     listarCopias: listar, copiaAhora, restaurar,
-  }), [fase, error, conexion, nombreCarpeta, registros, guardado, conflicto, ivaPct, dirRaiz, sesionCaducada,
+  }), [fase, error, conexion, nombreCarpeta, registros, entidades, informeMigracion, guardado, conflicto, ivaPct, dirRaiz, sesionCaducada,
     continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar,
     crearBDVacia, crear, actualizar, eliminar, resolverConflicto, listar, copiaAhora, restaurar])
 

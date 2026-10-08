@@ -1,3 +1,4 @@
+import type { Estado } from '../types'
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 
 // ---------- Avisos temporales ----------
@@ -48,12 +49,27 @@ export function Dialogo({ titulo, children, acciones, onCerrar }: { titulo: stri
   )
 }
 
-// ---------- Etiqueta de estado ----------
-export function EstadoChip({ tramitado }: { tramitado: boolean }) {
+// ---------- Estado del expediente ----------
+export const ESTADOS: { valor: Estado; texto: string }[] = [
+  { valor: 'preparacion', texto: 'En preparación' },
+  { valor: 'pendiente_firma', texto: 'Pendiente de firma' },
+  { valor: 'firmado', texto: 'Firmado' },
+  { valor: 'tramitado', texto: 'Tramitado' },
+]
+export const textoEstado = (e: Estado) => ESTADOS.find((x) => x.valor === e)?.texto ?? e
+
+const COLOR_ESTADO: Record<Estado, string> = {
+  preparacion: 'bg-aviso/10 text-aviso [--punto:theme(colors.aviso)]',
+  pendiente_firma: 'bg-indigo-claro text-indigo [--punto:theme(colors.indigo.DEFAULT)]',
+  firmado: 'bg-[#e3f1f6] text-[#0f6283] [--punto:#0f6283]',
+  tramitado: 'bg-ok/10 text-ok [--punto:theme(colors.ok)]',
+}
+
+export function EstadoChip({ estado }: { estado: Estado }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[0.8rem] font-semibold leading-none ${tramitado ? 'bg-ok/10 text-ok' : 'bg-aviso/10 text-aviso'}`}>
-      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${tramitado ? 'bg-ok' : 'bg-aviso'}`} />
-      {tramitado ? 'Tramitado' : 'Pendiente'}
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[0.8rem] font-semibold leading-none ${COLOR_ESTADO[estado]}`}>
+      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--punto)]" />
+      {textoEstado(estado)}
     </span>
   )
 }

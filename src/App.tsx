@@ -32,6 +32,38 @@ function DialogoConflicto() {
   )
 }
 
+function DialogoActualizacion() {
+  const { informeMigracion: inf, cerrarInforme, registros } = useStore()
+  if (!inf) return null
+  const entidad = (id: number) => registros.find((r) => r.id === id)?.entidad ?? `id ${id}`
+  return (
+    <Dialogo titulo="Base de datos actualizada" onCerrar={cerrarInforme}
+      acciones={<button className="btn-primario" onClick={cerrarInforme}>Entendido</button>}>
+      <p>Tu <code>datos.sqlite</code> se ha actualizado a la versión {inf.hasta}. Antes se guardó una copia en «backups» por si hubiera que volver atrás.</p>
+      <ul className="list-disc space-y-1 pl-5">
+        <li>{inf.entidades} entidades reunidas por CIF, para rellenar nuevos patrocinios.</li>
+        <li>Fechas de inicio y fin deducidas en {inf.fechasDeducidas} patrocinios (el texto de celebración no cambia).</li>
+        <li>Estado del expediente por fases y tipo de IVA en cada patrocinio.</li>
+      </ul>
+      {inf.cambiosTexto.length > 0 && (
+        <details className="rounded-lg bg-papel px-3 py-2">
+          <summary className="cursor-pointer font-medium text-tinta">
+            {inf.cambiosTexto.length} importes en letra corregidos o completados para que coincidan con el número
+          </summary>
+          <ul className="mt-2 max-h-56 space-y-2 overflow-auto text-[0.85rem]">
+            {inf.cambiosTexto.map((c, k) => (
+              <li key={k}>
+                <a className="font-semibold text-indigo underline" href={`#/registro/${c.id}`} onClick={cerrarInforme}>{entidad(c.id)}</a>
+                {' '}({c.campo}): {c.antes ? <><s className="text-tinta/50">{c.antes}</s> → </> : 'vacío → '}{c.despues}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </Dialogo>
+  )
+}
+
 function Contenido() {
   const { fase } = useStore()
   const ruta = useRuta()
@@ -49,6 +81,7 @@ function Contenido() {
       <Cabecera ruta={ruta} />
       <div className="lg:pl-64">{pantalla}</div>
       <DialogoConflicto />
+      <DialogoActualizacion />
     </>
   )
 }

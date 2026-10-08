@@ -23,8 +23,8 @@ export function Listado() {
     const termino = sinTildes(q.trim())
     const f = registros.filter((r) => {
       if (anio && String(r.anualidad) !== anio) return false
-      if (estado === 'pendiente' && r.tramitado) return false
-      if (estado === 'tramitado' && !r.tramitado) return false
+      if (estado === 'pendiente' && r.estado === 'tramitado') return false
+      if (estado === 'tramitado' && r.estado !== 'tramitado') return false
       if (!termino) return true
       const pajar = sinTildes([r.entidad, r.evento, r.cif, r.municipios, r.num_contrato ?? '', r.representante_legal, r.aplicacion].join(' '))
       return termino.split(/\s+/).every((t) => pajar.includes(t))
@@ -39,7 +39,7 @@ export function Listado() {
     })
   }, [registros, q, anio, estado, orden])
 
-  const pendientes = registros.filter((r) => !r.tramitado).length
+  const pendientes = registros.filter((r) => r.estado !== 'tramitado').length
   const filtrado = q.trim() !== '' || anio !== '' || estado !== ''
 
   const cab = (col: Col, texto: string, clase = '') => {
@@ -137,12 +137,12 @@ export function Listado() {
                     <div className="mt-0.5 line-clamp-1 text-[0.86rem] text-tinta/60" title={r.evento}>{r.evento}</div>
                     <div className="mt-1.5 flex items-center gap-3 md:hidden">
                       <span className="font-display text-[1.05rem] font-semibold">{eur(r.importe_total)}</span>
-                      <span className="sm:hidden"><EstadoChip tramitado={!!r.tramitado} /></span>
+                      <span className="sm:hidden"><EstadoChip estado={r.estado} /></span>
                     </div>
                   </td>
                   <td className="px-4 py-3 align-middle text-tinta/70 max-sm:hidden">{r.anualidad ?? ''}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right align-middle font-display text-[1.15rem] font-semibold max-md:hidden">{eur(r.importe_total)}</td>
-                  <td className="px-4 py-3 align-middle max-sm:hidden"><EstadoChip tramitado={!!r.tramitado} /></td>
+                  <td className="px-4 py-3 align-middle max-sm:hidden"><EstadoChip estado={r.estado} /></td>
                 </tr>
               ))}
             </tbody>

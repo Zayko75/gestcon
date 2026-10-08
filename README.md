@@ -95,22 +95,29 @@ Patrocinios/
 - La primera vez conecta con Google Drive (Parte 2) o pulsa **Elegir carpeta** y selecciona la carpeta `Patrocinios` del ordenador (Parte 3).
 - Las siguientes veces pulsa **Continuar con «Patrocinios»** y confirma la cuenta de Google o el permiso de la carpeta.
 - **Cambiar carpeta** (arriba a la derecha) vuelve a la pantalla de conexión.
-- Al abrir se crea una copia de seguridad automática.
+- La primera vez que abres la aplicación cada día se crea una copia de seguridad automática.
+- Si el `datos.sqlite` es de una versión anterior, la aplicación lo actualiza sola (antes guarda una copia en `backups/`) y muestra un resumen de lo que ha cambiado.
 
 **Listado.** Escribe en *Buscar* parte de la entidad, evento, CIF, municipio o nº de contrato. Filtra por anualidad o por estado (pendientes / tramitados). Pulsa en una fila para abrir su ficha. *Nuevo patrocinio* crea un registro.
 
 **Ficha.**
 - Los cambios se guardan solos (arriba aparece «Guardado a las…»). No hay botón de guardar.
 - Un patrocinio nuevo se guarda al pulsar **Crear patrocinio**; a partir de ahí se guarda solo.
-- **Marcar si se ha tramitado** sirve para distinguir los expedientes cerrados.
+- **Estado del expediente**: En preparación, Pendiente de firma, Firmado o Tramitado. En el listado, «Pendientes» son todos los que aún no están tramitados.
+- **Entidad**: en un patrocinio nuevo, al elegir una entidad que ya ha tenido patrocinios se rellenan su CIF, representante, DNI/NIE, teléfono y email. Cada patrocinio guarda su propia copia de esos datos, que es la que se imprime.
+- **Anualidad**: al escribirla se propone la aplicación presupuestaria de ese año; si no coinciden, se avisa.
+- **Nº de contrato**: se reinicia cada año, así que puede repetirse entre años. Solo se avisa si se repite dentro de la misma anualidad.
+- **Fechas del evento**: primer y último día como fechas; el texto de celebración se propone solo y se puede retocar (para días sueltos, escríbelo a mano).
+- **Importe en letra**: se escribe solo a partir del importe y del tipo de IVA del patrocinio.
+- **Soportes enumerados**: si se deja vacío se rellena con las dos listas; el botón «Rellenar a partir de las listas» lo rehace.
 - **Duplicar** crea una copia del patrocinio sin nº de contrato ni fecha de firma (útil cuando una entidad repite).
 - **Eliminar** pide confirmación y deja antes una copia de seguridad.
-- Los importes se escriben en formato español (`4.235,00` o `4235,5`). El importe sin IVA y el IVA se calculan al 21 %.
+- Los importes se escriben en formato español (`4.235,00` o `4235,5`). El importe sin IVA y el IVA se calculan con el tipo de IVA del patrocinio (21 % por defecto).
 - Bajo cada documento se avisa de los datos que faltan para generarlo (por ejemplo, la fecha de firma); se puede generar igualmente y esos huecos quedan en blanco.
 
 **Documentos.** En el panel de la derecha:
 1. Pulsa **Generar** en el documento que necesites, o **Generar todos**.
-2. El archivo Word se guarda en `documentos/` con el nombre `<nº contrato>_<documento>_<entidad>.docx` (por ejemplo `137_Contrato_CLUB_BTT_YUNQUERA.docx`). Si el patrocinio no tiene nº de contrato, el nombre empieza por `SC` seguido del identificador del registro.
+2. El archivo Word se guarda en `documentos/` con el nombre `<anualidad>_<nº contrato>_<documento>_<entidad>.docx` (por ejemplo `2026_137_Contrato_CLUB_BTT_YUNQUERA.docx`). La anualidad va delante porque el nº de contrato se reinicia cada año. Los documentos generados con versiones anteriores (sin la anualidad) se siguen encontrando. Si el patrocinio no tiene nº de contrato, el nombre empieza por `SC` seguido del identificador del registro.
 3. Se abre una vista previa. Desde ella:
    - **Imprimir o guardar como PDF**: en la ventana de impresión elige el destino *Guardar como PDF*.
    - **Descargar .docx**: descarga una copia del Word.
@@ -118,7 +125,7 @@ Patrocinios/
 
 > La aplicación no puede convertir a PDF por sí sola y guardarlo en la carpeta sin intervención (los navegadores no lo permiten). El Word se guarda automáticamente; el PDF se obtiene en un paso desde la vista previa.
 
-**Copias de seguridad.** En *Copias de seguridad* se ven las copias de la carpeta `backups/` (se conservan las últimas 30). Se puede **Crear copia ahora** y **Restaurar** cualquiera; antes de restaurar se guarda una copia de los datos actuales, así que se puede deshacer.
+**Copias de seguridad.** En *Copias de seguridad* se ven las copias de la carpeta `backups/` (se conservan las automáticas de los últimos 30 días y las 30 últimas del resto: manuales, antes de eliminar, restaurar o actualizar). Se puede **Crear copia ahora** y **Restaurar** cualquiera; antes de restaurar se guarda una copia de los datos actuales, así que se puede deshacer.
 
 **Si aparece «El archivo de datos ha cambiado».** Significa que `datos.sqlite` se modificó fuera de esta ventana (otra pestaña, otro ordenador o una copia manual).
 - *Recargar los datos del archivo*: descarta tu último cambio y muestra lo que hay en el archivo.
@@ -176,6 +183,9 @@ src/
 │   ├── backups.ts              copias automáticas (últimas 30)
 │   ├── documentos.ts           docxtemplater + PizZip, nombres de archivo, datos de las plantillas
 │   ├── format.ts               importes, fechas y campaña
+│   ├── textos.ts               importe en letra, fechas del evento, soportes enumerados
+│   ├── schema.ts               esquema SQLite (versión 2)
+│   ├── municipios.ts           municipios de la provincia (sugerencias)
 │   └── borrador.ts             formulario ⇄ base de datos
 docs/
 ├── esquema.sql                 esquema de datos.sqlite
@@ -186,7 +196,12 @@ Pila: React 18, Vite, Tailwind CSS, TypeScript, [sql.js](https://sql.js.org), [d
 
 ### Base de datos
 
-`datos.sqlite` tiene la tabla `patrocinios` (un registro por patrocinio), la vista `v_patrocinios` (con el importe sin IVA y el IVA calculados) y la tabla `configuracion` (versión del esquema y tipo de IVA). El esquema completo está en [`docs/esquema.sql`](docs/esquema.sql).
+`datos.sqlite` (esquema versión 2) tiene:
+- `patrocinios`: un registro por expediente. La clave es `id`; `num_contrato` se reinicia cada año y puede repetirse. Guarda su propia copia de los datos de la entidad, el estado, las fechas de inicio y fin, el tipo de IVA y los importes en letra.
+- `entidades`: una por CIF (agrupado sin espacios ni guiones, sin modificar cómo está escrito), con los datos de su patrocinio más reciente.
+- `configuracion`: versión del esquema y tipo de IVA por defecto.
+
+Reglas en la base de datos: importes no negativos, anualidad entre 2000 y 2100, fechas AAAA-MM-DD válidas, fin del evento no anterior al inicio, y fecha de modificación automática. La actualización desde la versión 1 está en `src/lib/db.ts` (`migrar`). El esquema completo está en [`docs/esquema.sql`](docs/esquema.sql).
 
 ## Origen
 

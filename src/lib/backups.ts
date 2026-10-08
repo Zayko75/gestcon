@@ -27,12 +27,24 @@ export async function listarCopias(dir: Carpeta): Promise<Copia[]> {
   return out.sort((a, b) => b.nombre.localeCompare(a.nombre))
 }
 
-/** Deja solo las últimas `max` copias (por nombre, que lleva la fecha) */
+/** Deja las últimas `max` copias automáticas (una por día) y las últimas `max` del resto (manuales, antes de eliminar…) */
 export async function podar(dir: Carpeta, max = MAX_COPIAS): Promise<number> {
   const copias = await listarCopias(dir)
-  const sobran = copias.slice(max)
+  const sobran = [
+    ...copias.filter((c) => c.motivo === '').slice(max),
+    ...copias.filter((c) => c.motivo !== '').slice(max),
+  ]
   for (const c of sobran) await borrarArchivo(dir, c.nombre)
   return sobran.length
+}
+
+const mismoDia = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+
+/** Copia automática del día: solo si hoy todavía no hay ninguna. Devuelve el nombre o null. */
+export async function copiaDiaria(dir: Carpeta, datos: Uint8Array): Promise<string | null> {
+  const hoy = new Date()
+  if ((await listarCopias(dir)).some((c) => c.motivo === '' && mismoDia(c.fecha, hoy))) return null
+  return crearCopia(dir, datos)
 }
 
 export async function crearCopia(dir: Carpeta, datos: Uint8Array, motivo = ''): Promise<string> {

@@ -6,7 +6,8 @@ import type { Copia } from '../types'
 import { Dialogo, useAviso } from './ui'
 
 const MOTIVOS: Record<string, string> = {
-  '': 'Automática al abrir',
+  '': 'Automática del día',
+  'antes-de-actualizar': 'Antes de actualizar la base de datos a la versión nueva',
   manual: 'Manual',
   'antes-de-eliminar': 'Antes de eliminar un patrocinio',
   'antes-de-restaurar': 'Antes de restaurar otra copia',
@@ -53,7 +54,7 @@ export function Copias() {
         <div>
           <h1 className="titulo">Copias de seguridad</h1>
           <p className="mt-2 max-w-xl text-tinta/65">
-            Cada vez que abres la aplicación se guarda una copia de los datos en la carpeta «backups». Se conservan las últimas {MAX_COPIAS}.
+            La primera vez que abres la aplicación cada día se guarda una copia de los datos en la carpeta «backups». Se conservan las de los últimos {MAX_COPIAS} días, además de las {MAX_COPIAS} últimas copias manuales o hechas antes de eliminar o restaurar.
           </p>
         </div>
         <button className="btn-primario" onClick={crear} disabled={ocupado}>{ocupado ? 'Creando copia…' : 'Crear copia ahora'}</button>

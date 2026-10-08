@@ -1,7 +1,9 @@
 import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js'
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
-import { SCHEMA_SQL } from './schema'
-import type { DatosPatrocinio, Patrocinio } from '../types'
+import { DISPARADORES_SQL, SCHEMA_SQL, VERSION_ESQUEMA, tablasSQL } from './schema'
+import { claveCif, fechasDeTexto, letraCoherente } from './textos'
+import { importeSinIva } from './format'
+import type { DatosPatrocinio, Entidad, InformeMigracion, Patrocinio } from '../types'
 
 let sqlPromise: Promise<SqlJsStatic> | null = null
 export function sql(): Promise<SqlJsStatic> {
@@ -9,12 +11,31 @@ export function sql(): Promise<SqlJsStatic> {
 }
 
 export const CAMPOS: (keyof DatosPatrocinio)[] = [
-  'tramitado', 'entidad', 'cif', 'representante_legal', 'dni_nie_representante', 'telefono', 'email',
-  'anualidad', 'evento', 'fecha_celebracion', 'plazo_ejecucion', 'municipios',
+  'estado', 'entidad', 'cif', 'representante_legal', 'dni_nie_representante', 'telefono', 'email',
+  'anualidad', 'evento', 'fecha_celebracion', 'fecha_inicio', 'fecha_fin', 'plazo_ejecucion', 'municipios',
   'soportes_cedidos', 'soportes_propios', 'soportes_enumerados',
-  'num_contrato', 'importe_total', 'importe_letra', 'importe_letra_sin_iva', 'aplicacion',
+  'num_contrato', 'importe_total', 'iva_pct', 'importe_letra', 'importe_letra_sin_iva', 'aplicacion',
   'importe_reding', 'fecha_firma',
 ]
+
+/** Traduce el error de una regla de la base de datos a un mensaje para el usuario */
+function mensajeRegla(e: unknown): Error {
+  const m = e instanceof Error ? e.message : String(e)
+  if (/CHECK constraint failed/i.test(m)) {
+    if (/fecha_fin >= fecha_inicio/.test(m)) return new Error('La fecha de fin del evento es anterior a la de inicio.')
+    if (/importe/.test(m)) return new Error('Los importes no pueden ser negativos.')
+    if (/anualidad/.test(m)) return new Error('La anualidad debe ser un año entre 2000 y 2100.')
+    if (/num_contrato/.test(m)) return new Error('El nº de contrato debe ser mayor que cero.')
+    if (/iva_pct/.test(m)) return new Error('El tipo de IVA debe estar entre 0 y 100.')
+    if (/fecha|plazo/.test(m)) return new Error('Alguna fecha no es válida.')
+    return new Error('Algún dato no cumple las reglas de la base de datos.')
+  }
+  return e instanceof Error ? e : new Error(m)
+}
+
+export function versionEsquema(db: Database): number {
+  return Number(db.exec('PRAGMA user_version')[0]?.values[0][0] ?? 0)
+}
 
 export async function abrirBD(bytes: Uint8Array): Promise<Database> {
   const SQL = await sql()
@@ -27,6 +48,11 @@ export async function abrirBD(bytes: Uint8Array): Promise<Database> {
     if (e instanceof Error && e.message.startsWith('El archivo')) throw e
     throw new Error('El archivo datos.sqlite no se puede leer: no parece una base de datos válida.')
   }
+  if (versionEsquema(db) > VERSION_ESQUEMA) {
+    db.close()
+    throw new Error('Este datos.sqlite es de una versión más nueva de la aplicación. Recarga la página (Ctrl + F5) para usar la última versión.')
+  }
+  db.exec('PRAGMA foreign_keys = ON')
   return db
 }
 
@@ -34,6 +60,7 @@ export async function nuevaBD(): Promise<Database> {
   const SQL = await sql()
   const db = new SQL.Database()
   db.exec(SCHEMA_SQL)
+  db.exec('PRAGMA foreign_keys = ON')
   return db
 }
 
@@ -41,25 +68,67 @@ export function exportar(db: Database): Uint8Array {
   return db.export()
 }
 
-export function listar(db: Database): Patrocinio[] {
-  const stmt = db.prepare('SELECT * FROM patrocinios ORDER BY id')
-  const out: Patrocinio[] = []
-  while (stmt.step()) out.push(stmt.getAsObject() as unknown as Patrocinio)
+function filas<T>(db: Database, consulta: string, params: (string | number | null)[] = []): T[] {
+  const stmt = db.prepare(consulta)
+  stmt.bind(params)
+  const out: T[] = []
+  while (stmt.step()) out.push(stmt.getAsObject() as unknown as T)
   stmt.free()
   return out
 }
 
+export function listar(db: Database): Patrocinio[] {
+  return filas<Patrocinio>(db, 'SELECT * FROM patrocinios ORDER BY id')
+}
+
+export function listarEntidades(db: Database): Entidad[] {
+  return filas<Entidad>(db, 'SELECT * FROM entidades ORDER BY nombre COLLATE NOCASE')
+}
+
+/** Crea o actualiza la entidad del CIF y devuelve su id (null si no hay CIF) */
+function guardarEntidad(db: Database, d: DatosPatrocinio, actualizarDatos: boolean): number | null {
+  const clave = claveCif(d.cif)
+  if (!clave) return null
+  const existe = filas<{ id: number }>(db, 'SELECT id FROM entidades WHERE clave_cif=?', [clave])[0]
+  const valores = [d.cif, d.entidad, d.representante_legal, d.dni_nie_representante, d.telefono, d.email]
+  if (!existe) {
+    db.run(`INSERT INTO entidades (clave_cif, cif, nombre, representante_legal, dni_nie_representante, telefono, email)
+            VALUES (?,?,?,?,?,?,?)`, [clave, ...valores])
+    return Number(db.exec('SELECT last_insert_rowid()')[0].values[0][0])
+  }
+  if (actualizarDatos) {
+    db.run(`UPDATE entidades SET cif=?, nombre=?, representante_legal=?, dni_nie_representante=?, telefono=?, email=?,
+            modificado=datetime('now') WHERE id=?`, [...valores, existe.id])
+  }
+  return existe.id
+}
+
 export function insertar(db: Database, d: DatosPatrocinio): number {
-  const cols = CAMPOS.join(',')
-  const marcas = CAMPOS.map(() => '?').join(',')
-  db.run(`INSERT INTO patrocinios (${cols}) VALUES (${marcas})`, CAMPOS.map((c) => d[c]) as any[])
-  const r = db.exec('SELECT last_insert_rowid()')
-  return Number(r[0].values[0][0])
+  try {
+    const entidadId = guardarEntidad(db, d, true)
+    const cols = [...CAMPOS, 'entidad_id'].join(',')
+    const marcas = [...CAMPOS, 'entidad_id'].map(() => '?').join(',')
+    db.run(`INSERT INTO patrocinios (${cols}) VALUES (${marcas})`, [...CAMPOS.map((c) => d[c]), entidadId] as any[])
+    return Number(db.exec('SELECT last_insert_rowid()')[0].values[0][0])
+  } catch (e) {
+    throw mensajeRegla(e)
+  }
 }
 
 export function actualizar(db: Database, id: number, d: DatosPatrocinio): void {
-  const set = CAMPOS.map((c) => `${c}=?`).join(',')
-  db.run(`UPDATE patrocinios SET ${set}, modificado=datetime('now') WHERE id=?`, [...CAMPOS.map((c) => d[c]), id] as any[])
+  try {
+    // Los datos de la entidad solo se actualizan desde su patrocinio más reciente,
+    // para que corregir un expediente antiguo no deshaga datos más nuevos.
+    const clave = claveCif(d.cif)
+    const ultimo = clave
+      ? filas<{ m: number | null }>(db, `SELECT MAX(p.id) AS m FROM patrocinios p JOIN entidades e ON e.id = p.entidad_id WHERE e.clave_cif = ?`, [clave])[0]?.m
+      : null
+    const entidadId = guardarEntidad(db, d, ultimo === null || ultimo === undefined || id >= ultimo)
+    const set = CAMPOS.map((c) => `${c}=?`).join(',')
+    db.run(`UPDATE patrocinios SET ${set}, entidad_id=?, modificado=datetime('now') WHERE id=?`, [...CAMPOS.map((c) => d[c]), entidadId, id] as any[])
+  } catch (e) {
+    throw mensajeRegla(e)
+  }
 }
 
 export function eliminar(db: Database, id: number): void {
@@ -76,4 +145,89 @@ export function leerConfig(db: Database, clave: string, defecto: string): string
   } catch {
     return defecto
   }
+}
+
+// ---------- Migraciones ----------
+
+/** Actualiza el archivo a la última versión del esquema. Devuelve null si ya estaba al día. */
+export function migrar(db: Database): InformeMigracion | null {
+  const desde = versionEsquema(db) || 1
+  if (desde >= VERSION_ESQUEMA) return null
+  const informe: InformeMigracion = { desde, hasta: VERSION_ESQUEMA, entidades: 0, fechasDeducidas: 0, cambiosTexto: [] }
+  db.exec('PRAGMA foreign_keys = OFF')
+  db.exec('BEGIN')
+  try {
+    if (desde < 2) migrarA2(db, informe)
+    db.exec(`INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','${VERSION_ESQUEMA}')
+             ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor`)
+    db.exec(`PRAGMA user_version = ${VERSION_ESQUEMA}`)
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw new Error('No se pudo actualizar la base de datos a la versión nueva: ' + (e instanceof Error ? e.message : String(e)))
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON')
+  }
+  db.exec('VACUUM') // compacta el archivo
+  return informe
+}
+
+/** Versión 1 (migración desde Access) → 2 */
+function migrarA2(db: Database, informe: InformeMigracion): void {
+  const iva = Number(leerConfig(db, 'tipo_iva', '21')) || 21
+  const secuencia = filas<{ seq: number }>(db, "SELECT seq FROM sqlite_sequence WHERE name='patrocinios'")[0]?.seq ?? 0
+
+  // Lo que ya no se usa: vista con el IVA fijo e índices (la aplicación filtra en memoria)
+  db.exec(`DROP VIEW IF EXISTS v_patrocinios;
+    DROP INDEX IF EXISTS idx_patrocinios_entidad; DROP INDEX IF EXISTS idx_patrocinios_anualidad;
+    DROP INDEX IF EXISTS idx_patrocinios_contrato; DROP INDEX IF EXISTS idx_patrocinios_tramitado;`)
+
+  db.exec(tablasSQL('patrocinios_v2'))
+  db.exec(`INSERT INTO patrocinios_v2 (id, estado, entidad, cif, representante_legal, dni_nie_representante, telefono, email,
+      anualidad, evento, fecha_celebracion, plazo_ejecucion, municipios, soportes_cedidos, soportes_propios, soportes_enumerados,
+      num_contrato, importe_total, iva_pct, importe_letra, importe_letra_sin_iva, aplicacion, importe_reding, fecha_firma, creado, modificado)
+    SELECT id, CASE WHEN tramitado = 1 THEN 'tramitado' ELSE 'preparacion' END, entidad, cif, representante_legal, dni_nie_representante,
+      telefono, email, anualidad, evento, fecha_celebracion, plazo_ejecucion, municipios, soportes_cedidos, soportes_propios,
+      soportes_enumerados, num_contrato, importe_total, ${iva}, importe_letra, importe_letra_sin_iva, aplicacion, importe_reding,
+      fecha_firma, creado, modificado
+    FROM patrocinios ORDER BY id`)
+
+  const registros = filas<Patrocinio>(db, 'SELECT * FROM patrocinios_v2 ORDER BY id')
+  for (const p of registros) {
+    // Importe en letra: se conserva el texto si dice el mismo importe; si no, se corrige
+    const cambios: [string, string][] = []
+    if (p.importe_total > 0) {
+      const letra = letraCoherente(p.importe_letra, p.importe_total)
+      if (letra !== p.importe_letra) {
+        cambios.push(['importe_letra', letra])
+        informe.cambiosTexto.push({ id: p.id, campo: 'Importe en letra', antes: p.importe_letra, despues: letra })
+      }
+      const sinIva = importeSinIva(p.importe_total, p.iva_pct)
+      const letraSin = letraCoherente(p.importe_letra_sin_iva, sinIva)
+      if (letraSin !== p.importe_letra_sin_iva) {
+        cambios.push(['importe_letra_sin_iva', letraSin])
+        informe.cambiosTexto.push({ id: p.id, campo: 'Importe sin IVA en letra', antes: p.importe_letra_sin_iva, despues: letraSin })
+      }
+    }
+    // Fechas reales deducidas del texto de celebración (el texto no cambia)
+    const f = fechasDeTexto(p.fecha_celebracion, p.anualidad)
+    if (f) {
+      cambios.push(['fecha_inicio', f.inicio], ['fecha_fin', f.fin])
+      informe.fechasDeducidas++
+    }
+    if (cambios.length) {
+      db.run(`UPDATE patrocinios_v2 SET ${cambios.map(([c]) => `${c}=?`).join(',')} WHERE id=?`, [...cambios.map(([, v]) => v), p.id])
+    }
+    // Entidades: una por CIF, con los datos de su patrocinio más reciente
+    const d = p as unknown as DatosPatrocinio
+    const entidadId = guardarEntidad(db, d, true)
+    if (entidadId !== null) db.run('UPDATE patrocinios_v2 SET entidad_id=? WHERE id=?', [entidadId, p.id])
+  }
+  informe.entidades = Number(db.exec('SELECT COUNT(*) FROM entidades')[0].values[0][0])
+
+  db.exec('DROP TABLE patrocinios')
+  db.exec('ALTER TABLE patrocinios_v2 RENAME TO patrocinios')
+  // Conserva el contador de ids para no reutilizar los de patrocinios eliminados
+  db.run("UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name='patrocinios'", [secuencia])
+  db.exec(DISPARADORES_SQL)
 }

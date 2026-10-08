@@ -35,8 +35,8 @@ export const NOMBRE_CAMPO: Record<string, string> = {
 }
 
 /** Valores que se insertan en las plantillas, ya formateados */
-export function datosPlantilla(p: Patrocinio, ivaPct: number): Record<string, string> {
-  const sinIva = importeSinIva(p.importe_total, ivaPct)
+export function datosPlantilla(p: Patrocinio): Record<string, string> {
+  const sinIva = importeSinIva(p.importe_total, p.iva_pct)
   const s = (v: unknown) => (v === null || v === undefined ? '' : String(v))
   return {
     entidad: s(p.entidad), cif: s(p.cif), evento: s(p.evento),
@@ -88,8 +88,18 @@ function limpiar(texto: string, max: number): string {
     .replace(/[._]+$/, '')
 }
 
-/** 151_Contrato_CD._COSTA_DEL_VOLEY.docx  (SC = sin nº de contrato) */
+/**
+ * 2026_151_Contrato_CD._COSTA_DEL_VOLEY.docx  (SC = sin nº de contrato).
+ * Lleva la anualidad porque el nº de contrato se reinicia cada año.
+ */
 export function nombreDocumento(p: Patrocinio, def: DefDocumento): string {
+  const num = p.num_contrato !== null ? String(p.num_contrato).padStart(3, '0') : 'SC' + p.id
+  const anio = p.anualidad !== null ? `${p.anualidad}_` : ''
+  return `${anio}${num}_${def.prefijo}_${limpiar(p.entidad, 60) || 'sin_entidad'}.docx`
+}
+
+/** Nombre que usaban las versiones anteriores (sin anualidad), para encontrar documentos ya generados */
+export function nombreDocumentoAntiguo(p: Patrocinio, def: DefDocumento): string {
   const num = p.num_contrato !== null ? String(p.num_contrato).padStart(3, '0') : 'SC' + p.id
   return `${num}_${def.prefijo}_${limpiar(p.entidad, 60) || 'sin_entidad'}.docx`
 }

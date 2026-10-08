@@ -1,20 +1,41 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { aBorrador, borradorVacio, deBorrador, type Borrador } from '../lib/borrador'
-import { eur, importeSinIva } from '../lib/format'
-import { parseImporte } from '../lib/format'
+import { aBorrador, borradorVacio, deBorrador, letrasDe, type Borrador } from '../lib/borrador'
+import { eur, importeSinIva, parseImporte } from '../lib/format'
+import { MUNICIPIOS } from '../lib/municipios'
 import { useStore } from '../lib/store'
-import type { Patrocinio } from '../types'
+import { claveCif, emailValido, soportesEnumerados, textoDeFechas, variasLineas } from '../lib/textos'
+import type { Entidad, Estado, Patrocinio } from '../types'
 import { PanelDocumentos } from './PanelDocumentos'
-import { Dialogo, Dorsal, useAviso } from './ui'
+import { Dialogo, Dorsal, ESTADOS, useAviso } from './ui'
 
-function Campo({ id, etiqueta, ayuda, aviso, children, className = '' }: { id: string; etiqueta: string; ayuda?: string; aviso?: string; children: ReactNode; className?: string }) {
+function Campo({ id, etiqueta, ayuda, aviso, accion, children, className = '' }: { id: string; etiqueta: string; ayuda?: ReactNode; aviso?: ReactNode; accion?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <div className={className}>
-      <label htmlFor={id} className="etiqueta">{etiqueta}</label>
+      <div className="flex items-baseline justify-between gap-2">
+        <label htmlFor={id} className="etiqueta">{etiqueta}</label>
+        {accion}
+      </div>
       {children}
       {aviso ? <p className="mt-1.5 text-[0.82rem] font-medium text-aviso">{aviso}</p> : ayuda ? <p className="mt-1.5 text-[0.82rem] leading-snug text-tinta/55">{ayuda}</p> : null}
     </div>
   )
+}
+
+/** Botón pequeño junto a la etiqueta de un campo */
+const Accion = ({ onClick, children }: { onClick: () => void; children: ReactNode }) => (
+  <button type="button" onClick={onClick} className="mb-1.5 rounded text-[0.8rem] font-semibold text-indigo hover:underline">{children}</button>
+)
+
+/** Aplicación presupuestaria propuesta para un año: la más usada ese año o la última con el año cambiado */
+function aplicacionPara(anio: number, registros: Patrocinio[]): string {
+  const delAnio = registros.filter((r) => r.anualidad === anio && /^\d{4}\//.test(r.aplicacion))
+  if (delAnio.length) {
+    const cuenta = new Map<string, number>()
+    for (const r of delAnio) cuenta.set(r.aplicacion, (cuenta.get(r.aplicacion) ?? 0) + 1)
+    return [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0][0]
+  }
+  const ultima = [...registros].reverse().find((r) => /^\d{4}\//.test(r.aplicacion))
+  return ultima ? `${anio}${ultima.aplicacion.slice(4)}` : ''
 }
 
 function Seccion({ titulo, descripcion, children }: { titulo: string; descripcion: string; children: ReactNode }) {
@@ -30,11 +51,11 @@ function Seccion({ titulo, descripcion, children }: { titulo: string; descripcio
 }
 
 export function Ficha({ id }: { id: number | null }) {
-  const { registros, crear, actualizar, eliminar, copiaAhora, ivaPct } = useStore()
+  const { registros, entidades, crear, actualizar, eliminar, copiaAhora, ivaPct } = useStore()
   const aviso = useAviso()
   const guardado = id !== null ? registros.find((r) => r.id === id) : undefined
 
-  const [b, setB] = useState<Borrador>(() => (guardado ? aBorrador(guardado) : borradorVacio()))
+  const [b, setB] = useState<Borrador>(() => (guardado ? aBorrador(guardado) : borradorVacio(ivaPct)))
   const [errorGuardar, setErrorGuardar] = useState('')
   const [confirmarBorrar, setConfirmarBorrar] = useState(false)
   const ultimo = useRef(JSON.stringify(b)) // última versión guardada
@@ -49,6 +70,41 @@ export function Ficha({ id }: { id: number | null }) {
   })
 
   const parsed = useMemo(() => deBorrador(b), [b])
+
+  /** Rellena los datos de la entidad (solo en patrocinios nuevos) */
+  const usarEntidad = (e: Entidad) => setB((x) => ({
+    ...x, entidad: e.nombre, cif: e.cif, representante_legal: e.representante_legal,
+    dni_nie_representante: e.dni_nie_representante, telefono: e.telefono, email: e.email,
+  }))
+  const cambiarEntidad = (v: string) => {
+    set('entidad', v)
+    const e = id === null ? entidades.find((x) => x.nombre === v) : undefined
+    if (e) usarEntidad(e)
+  }
+  const entidadDelCif = id === null && b.cif.trim() ? entidades.find((e) => e.clave_cif === claveCif(b.cif)) : undefined
+  const sugerirEntidad = entidadDelCif && (entidadDelCif.representante_legal !== b.representante_legal || entidadDelCif.email !== b.email)
+
+  const cambiarAnualidad = (v: string) => {
+    setB((x) => {
+      const n = Number(v)
+      const prop = Number.isInteger(n) && n >= 2000 && n <= 2100 ? aplicacionPara(n, registros) : ''
+      // Propone la aplicación si está vacía o era la propuesta del año anterior
+      const anterior = Number(x.anualidad)
+      const eraPropuesta = x.aplicacion === '' || (Number.isInteger(anterior) && x.aplicacion === aplicacionPara(anterior, registros))
+      return { ...x, anualidad: v, aplicacion: prop && eraPropuesta ? prop : x.aplicacion }
+    })
+  }
+
+  const cambiarFecha = (k: 'fecha_inicio' | 'fecha_fin', v: string) => {
+    setB((x) => {
+      const nuevo = { ...x, [k]: v }
+      if (k === 'fecha_inicio' && v && (!x.fecha_fin || x.fecha_fin < v)) nuevo.fecha_fin = v
+      // Si el texto estaba vacío o era el propuesto con las fechas anteriores, se actualiza
+      const propuestoAntes = textoDeFechas(x.fecha_inicio, x.fecha_fin)
+      if (!x.fecha_celebracion.trim() || x.fecha_celebracion === propuestoAntes) nuevo.fecha_celebracion = textoDeFechas(nuevo.fecha_inicio, nuevo.fecha_fin)
+      return nuevo
+    })
+  }
 
   /** Guarda ya (sin esperar al temporizador). Devuelve true si los datos quedaron guardados. */
   const guardarAhora = useCallback(async (): Promise<boolean> => {
@@ -69,7 +125,7 @@ export function Ficha({ id }: { id: number | null }) {
     }
   }, [id, actualizar])
 
-  // Guardado automático tras cada cambio (0,7 s después de dejar de escribir)
+  // Guardado automático: 2 s después de dejar de escribir, o al salir del campo
   useEffect(() => {
     if (id === null) return
     if (JSON.stringify(b) === ultimo.current) return
@@ -77,7 +133,7 @@ export function Ficha({ id }: { id: number | null }) {
     if ('error' in r) { setErrorGuardar(r.error); return }
     setErrorGuardar('')
     window.clearTimeout(temporizador.current)
-    temporizador.current = window.setTimeout(() => { void guardarAhora() }, 700)
+    temporizador.current = window.setTimeout(() => { void guardarAhora() }, 2000)
     return () => window.clearTimeout(temporizador.current)
   }, [b, id, guardarAhora])
 
@@ -113,7 +169,7 @@ export function Ficha({ id }: { id: number | null }) {
   const duplicar = async () => {
     if (!guardado || 'error' in parsed) return
     if (!(await guardarAhora())) return
-    const copia = { ...parsed.datos, tramitado: 0, num_contrato: null, fecha_firma: null }
+    const copia = { ...parsed.datos, estado: 'preparacion' as Estado, num_contrato: null, fecha_firma: null }
     const nuevoId = await crear(copia)
     aviso('Se ha creado una copia sin nº de contrato ni fecha de firma. Ya puedes editarla.')
     location.hash = `#/registro/${nuevoId}`
@@ -134,10 +190,18 @@ export function Ficha({ id }: { id: number | null }) {
 
   // Avisos de coherencia (no bloquean)
   const num = b.num_contrato.trim() === '' ? null : Number(b.num_contrato)
-  const contratoRepetido = num !== null && registros.some((r) => r.id !== id && r.num_contrato === num)
-  const avisoAplicacion = b.aplicacion && !/^\d{4}\/\d{4}\/\d{4}\/\d{5}$/.test(b.aplicacion) ? 'Formato habitual: 0000/0000/0000/00000' : undefined
+  const anioNum = b.anualidad.trim() === '' ? null : Number(b.anualidad)
+  // El nº de contrato se reinicia cada año: solo se avisa si se repite dentro de la misma anualidad
+  const contratoRepetido = num !== null && registros.some((r) => r.id !== id && r.num_contrato === num && r.anualidad === anioNum)
+  const avisoAplicacion = !b.aplicacion ? undefined
+    : !/^\d{4}\/\d{4}\/\d{4}\/\d{5}$/.test(b.aplicacion) ? 'Formato habitual: 0000/0000/0000/00000'
+      : anioNum !== null && b.aplicacion.slice(0, 4) !== String(anioNum) ? `La aplicación es de ${b.aplicacion.slice(0, 4)} y la anualidad, ${anioNum}.` : undefined
   const total = parseImporte(b.importe_total)
-  const sinIva = total !== null ? importeSinIva(total, ivaPct) : null
+  const ivaB = parseImporte(b.iva_pct) ?? ivaPct
+  const sinIva = total !== null ? importeSinIva(total, ivaB) : null
+  const letras = letrasDe(b)
+  const enumeradosPropuestos = soportesEnumerados(variasLineas(b.soportes_cedidos), variasLineas(b.soportes_propios))
+  const textoFechas = textoDeFechas(b.fecha_inicio, b.fecha_fin)
 
   const registroParaDocs: Patrocinio | null = guardado && 'datos' in parsed ? { ...guardado, ...parsed.datos } : null
 
@@ -167,16 +231,14 @@ export function Ficha({ id }: { id: number | null }) {
             {id === null ? 'Rellena los datos y pulsa «Crear patrocinio». A partir de ahí, los cambios se guardan solos.' : b.evento}
           </p>
         </div>
-        <label className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${b.tramitado ? 'border-ok/30 bg-ok/[.07]' : 'border-aviso/30 bg-aviso/[.07]'}`}>
-          <input type="checkbox" role="switch" className="peer sr-only" checked={b.tramitado} onChange={(e) => set('tramitado', e.target.checked)} />
-          <span aria-hidden="true" className={`relative h-6 w-11 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-indigo peer-focus-visible:ring-offset-2 ${b.tramitado ? 'bg-ok' : 'bg-tinta/25'}`}>
-            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] ${b.tramitado ? 'left-[1.375rem]' : 'left-0.5'}`} />
-          </span>
-          <span className="leading-tight">
-            <span className={`block font-semibold ${b.tramitado ? 'text-ok' : 'text-aviso'}`}>{b.tramitado ? 'Tramitado' : 'Pendiente'}</span>
-            <span className="block text-[0.8rem] text-tinta/55">Marca si el expediente está tramitado</span>
-          </span>
-        </label>
+        <div className="w-full sm:w-auto">
+          <span id="t-estado" className="etiqueta">Estado del expediente</span>
+          <div className="segmento flex-wrap" role="group" aria-labelledby="t-estado">
+            {ESTADOS.map((e) => (
+              <button key={e.valor} type="button" aria-pressed={b.estado === e.valor} onClick={() => set('estado', e.valor)}>{e.texto}</button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {errorGuardar && (
@@ -185,48 +247,84 @@ export function Ficha({ id }: { id: number | null }) {
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div>
-          <div className="overflow-hidden rounded-xl border border-linea bg-white">
+          <div className="overflow-hidden rounded-xl border border-linea bg-white" onBlurCapture={() => { if (id !== null) void guardarAhora() }}>
           <Seccion titulo="Entidad" descripcion="Quién recibe el patrocinio y cómo contactar.">
-            <Campo id="f-entidad" etiqueta="Entidad" className="sm:col-span-2"><input {...texto('entidad')} autoFocus={id === null} /></Campo>
-            <Campo id="f-cif" etiqueta="CIF"><input {...texto('cif')} /></Campo>
+            <Campo id="f-entidad" etiqueta="Entidad" className="sm:col-span-2"
+              ayuda={id === null ? 'Si la entidad ya ha tenido patrocinios, elígela de la lista y se rellenarán sus datos.' : undefined}>
+              <input {...texto('entidad')} onChange={(e) => cambiarEntidad(e.target.value)} list="lista-entidades" autoComplete="off" autoFocus={id === null} />
+              <datalist id="lista-entidades">
+                {entidades.map((e) => <option key={e.id} value={e.nombre}>{e.cif}</option>)}
+              </datalist>
+            </Campo>
+            <Campo id="f-cif" etiqueta="CIF"
+              aviso={sugerirEntidad ? <>Este CIF es de <strong>{entidadDelCif!.nombre}</strong>. <button type="button" className="underline" onClick={() => usarEntidad(entidadDelCif!)}>Usar sus datos</button></> : undefined}>
+              <input {...texto('cif')} />
+            </Campo>
             <Campo id="f-representante_legal" etiqueta="Representante legal"><input {...texto('representante_legal')} /></Campo>
             <Campo id="f-dni_nie_representante" etiqueta="DNI/NIE del representante"><input {...texto('dni_nie_representante')} /></Campo>
             <Campo id="f-telefono" etiqueta="Teléfono"><input {...texto('telefono')} inputMode="tel" /></Campo>
-            <Campo id="f-email" etiqueta="Email" className="sm:col-span-2"><input {...texto('email')} type="email" /></Campo>
+            <Campo id="f-email" etiqueta="Email" className="sm:col-span-2"
+              aviso={!emailValido(b.email) ? 'El email no parece válido.' : undefined}
+              ayuda="Si hay varios, sepáralos con punto y coma.">
+              <input {...texto('email')} type="text" inputMode="email" />
+            </Campo>
           </Seccion>
 
           <Seccion titulo="Evento" descripcion="Qué se patrocina, cuándo, dónde y con qué soportes.">
-            <Campo id="f-anualidad" etiqueta="Anualidad"><input {...texto('anualidad')} inputMode="numeric" /></Campo>
+            <Campo id="f-anualidad" etiqueta="Anualidad"><input {...texto('anualidad')} onChange={(e) => cambiarAnualidad(e.target.value)} inputMode="numeric" /></Campo>
             <Campo id="f-plazo_ejecucion" etiqueta="Plazo de ejecución"><input {...texto('plazo_ejecucion')} type="date" /></Campo>
             <Campo id="f-evento" etiqueta="Evento" className="sm:col-span-2"><textarea {...texto('evento')} rows={2} /></Campo>
-            <Campo id="f-fecha_celebracion" etiqueta="Fecha de celebración" ayuda="Texto libre, tal como saldrá en los documentos. Ejemplo: el 23 y 24 de septiembre de 2023">
+            <Campo id="f-fecha_inicio" etiqueta="Primer día del evento">
+              <input {...texto('fecha_inicio')} onChange={(e) => cambiarFecha('fecha_inicio', e.target.value)} type="date" />
+            </Campo>
+            <Campo id="f-fecha_fin" etiqueta="Último día del evento">
+              <input {...texto('fecha_fin')} onChange={(e) => cambiarFecha('fecha_fin', e.target.value)} type="date" min={b.fecha_inicio || undefined} />
+            </Campo>
+            <Campo id="f-fecha_celebracion" etiqueta="Fecha de celebración (texto de los documentos)" className="sm:col-span-2"
+              accion={textoFechas && textoFechas !== b.fecha_celebracion ? <Accion onClick={() => set('fecha_celebracion', textoFechas)}>Escribir a partir de las fechas</Accion> : undefined}
+              ayuda="Tal como saldrá en los documentos. Para días sueltos escríbelo a mano, por ejemplo: el 4, 11, 18 y 25 de julio de 2026">
               <input {...texto('fecha_celebracion')} />
             </Campo>
-            <Campo id="f-municipios" etiqueta="Municipios"><input {...texto('municipios')} /></Campo>
+            <Campo id="f-municipios" etiqueta="Municipios" className="sm:col-span-2" ayuda="Elige de la lista o escribe varios separados por comas.">
+              <input {...texto('municipios')} list="lista-municipios" autoComplete="off" />
+              <datalist id="lista-municipios">
+                {MUNICIPIOS.map((m) => <option key={m} value={m} />)}
+              </datalist>
+            </Campo>
             <Campo id="f-soportes_cedidos" etiqueta="Soportes cedidos por la Diputación" ayuda="Uno por línea">
               <textarea {...texto('soportes_cedidos')} rows={5} />
             </Campo>
             <Campo id="f-soportes_propios" etiqueta="Soportes propios de la entidad" ayuda="Uno por línea">
               <textarea {...texto('soportes_propios')} rows={5} />
             </Campo>
-            <Campo id="f-soportes_enumerados" etiqueta="Soportes enumerados" ayuda="La misma lista en una sola línea, separada por comas (Informes económico y de justificación)" className="sm:col-span-2">
+            <Campo id="f-soportes_enumerados" etiqueta="Soportes enumerados" className="sm:col-span-2"
+              accion={enumeradosPropuestos && enumeradosPropuestos !== b.soportes_enumerados ? <Accion onClick={() => set('soportes_enumerados', enumeradosPropuestos)}>Rellenar a partir de las listas</Accion> : undefined}
+              ayuda="Las dos listas en una frase (Informes económico y de justificación). Si lo dejas vacío, se rellena solo.">
               <textarea {...texto('soportes_enumerados')} rows={3} />
             </Campo>
           </Seccion>
 
           <Seccion titulo="Contrato e importes" descripcion="Datos del expediente para anexos y contrato.">
-            <Campo id="f-num_contrato" etiqueta="Nº de contrato" aviso={contratoRepetido ? 'Ya existe otro patrocinio con este número de contrato.' : undefined}>
+            <Campo id="f-num_contrato" etiqueta="Nº de contrato" ayuda="Se reinicia cada año."
+              aviso={contratoRepetido ? `Ya hay otro patrocinio de ${anioNum} con este número de contrato.` : undefined}>
               <input {...texto('num_contrato')} inputMode="numeric" />
             </Campo>
-            <Campo id="f-aplicacion" etiqueta="Aplicación presupuestaria" aviso={avisoAplicacion}>
+            <Campo id="f-aplicacion" etiqueta="Aplicación presupuestaria" aviso={avisoAplicacion}
+              accion={anioNum && b.aplicacion && b.aplicacion.slice(0, 4) !== String(anioNum) && aplicacionPara(anioNum, registros) ? <Accion onClick={() => set('aplicacion', aplicacionPara(anioNum, registros))}>Usar la de {anioNum}</Accion> : undefined}>
               <input {...texto('aplicacion')} placeholder="2026/1301/3411/22608" />
             </Campo>
-            <Campo id="f-importe_total" etiqueta="Importe total (IVA incluido)" ayuda={sinIva !== null && total ? `Sin IVA: ${eur(sinIva)}. IVA (${ivaPct} %): ${eur(Math.round(((total ?? 0) - sinIva) * 100) / 100)}.` : undefined}>
+            <Campo id="f-importe_total" etiqueta="Importe total (IVA incluido)" ayuda={sinIva !== null && total ? `Sin IVA: ${eur(sinIva)}. IVA: ${eur(Math.round(((total ?? 0) - sinIva) * 100) / 100)}.` : undefined}>
               <input {...texto('importe_total')} inputMode="decimal" placeholder="0,00" />
             </Campo>
+            <Campo id="f-iva_pct" etiqueta="Tipo de IVA (%)" ayuda="Se guarda en cada patrocinio, para que un cambio futuro del IVA no altere los expedientes ya firmados.">
+              <input {...texto('iva_pct')} inputMode="decimal" />
+            </Campo>
+            <div className="rounded-lg bg-papel px-4 py-3 sm:col-span-2" aria-live="polite">
+              <div className="text-[0.84rem] font-medium text-tinta/70">Importe en letra (se escribe solo)</div>
+              <p className="mt-1">{total ? letras.total : <span className="text-tinta/45">Escribe el importe total.</span>}</p>
+              {total ? <p className="mt-1 text-[0.9rem] text-tinta/70">Sin IVA: {letras.sinIva}</p> : null}
+            </div>
             <Campo id="f-importe_reding" etiqueta="Importe REDING"><input {...texto('importe_reding')} inputMode="decimal" placeholder="0,00" /></Campo>
-            <Campo id="f-importe_letra" etiqueta="Importe total en letra" className="sm:col-span-2"><input {...texto('importe_letra')} placeholder="Dos mil cuatrocientos veinte euros" /></Campo>
-            <Campo id="f-importe_letra_sin_iva" etiqueta="Importe sin IVA en letra" ayuda="Solo se usa en el Anexo I" className="sm:col-span-2"><input {...texto('importe_letra_sin_iva')} /></Campo>
             <Campo id="f-fecha_firma" etiqueta="Fecha de firma" ayuda="Solo se usa en el Informe de justificación"><input {...texto('fecha_firma')} type="date" /></Campo>
           </Seccion>
 

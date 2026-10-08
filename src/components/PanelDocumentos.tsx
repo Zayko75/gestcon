@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Patrocinio } from '../types'
-import { DOCUMENTOS, camposFaltantes, datosPlantilla, etiquetasDePlantilla, generarDocx, nombreDocumento, type DefDocumento } from '../lib/documentos'
+import { DOCUMENTOS, camposFaltantes, datosPlantilla, etiquetasDePlantilla, generarDocx, nombreDocumento, nombreDocumentoAntiguo, type DefDocumento } from '../lib/documentos'
 import { fechaHoraES } from '../lib/format'
 import * as fs from '../lib/fs'
 import { useStore } from '../lib/store'
@@ -10,6 +10,7 @@ import { useAviso } from './ui'
 interface Estado {
   etiquetas: string[] | null // null = falta la plantilla
   existe: Date | null // fecha del documento ya generado
+  archivo: string | null // nombre con el que está guardado (el actual o el de versiones anteriores)
 }
 
 export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: {
@@ -17,7 +18,7 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
   listoParaGenerar: boolean
   antesDeGenerar: () => Promise<boolean>
 }) {
-  const { dirRaiz, ivaPct } = useStore()
+  const { dirRaiz } = useStore()
   const aviso = useAviso()
   const [estados, setEstados] = useState<Record<string, Estado>>({})
   const [trabajando, setTrabajando] = useState<string | null>(null)
@@ -35,13 +36,18 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
         etiquetas = etiquetasDePlantilla((await fs.leerBytes(dirPl, def.plantilla)).datos)
       } catch { /* falta la plantilla */ }
       let existe: Date | null = null
-      try {
-        existe = new Date(await fs.modificadoDe(dirDoc, nombreDocumento(registro, def)))
-      } catch { /* aún no generado */ }
-      nuevo[def.id] = { etiquetas, existe }
+      let archivo: string | null = null
+      for (const nombre of [nombreDocumento(registro, def), nombreDocumentoAntiguo(registro, def)]) {
+        try {
+          existe = new Date(await fs.modificadoDe(dirDoc, nombre))
+          archivo = nombre
+          break
+        } catch { /* aún no generado */ }
+      }
+      nuevo[def.id] = { etiquetas, existe, archivo }
     }
     setEstados(nuevo)
-  }, [dirRaiz, registro?.id, registro?.num_contrato, registro?.entidad]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dirRaiz, registro?.id, registro?.num_contrato, registro?.entidad, registro?.anualidad]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void cargarEstados() }, [cargarEstados])
 
@@ -58,10 +64,10 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
         aviso(`Falta la plantilla ${def.plantilla} en la carpeta «plantillas».`, 'error')
         return false
       }
-      const bytes = generarDocx(plantilla, datosPlantilla(registro, ivaPct))
+      const bytes = generarDocx(plantilla, datosPlantilla(registro))
       const nombre = nombreDocumento(registro, def)
       await fs.escribirBytes(await fs.subcarpeta(dirRaiz, 'documentos'), nombre, bytes)
-      setEstados((e) => ({ ...e, [def.id]: { etiquetas: e[def.id]?.etiquetas ?? etiquetasDePlantilla(plantilla), existe: new Date() } }))
+      setEstados((e) => ({ ...e, [def.id]: { etiquetas: e[def.id]?.etiquetas ?? etiquetasDePlantilla(plantilla), existe: new Date(), archivo: nombre } }))
       if (!silencioso) {
         aviso(`${def.etiqueta} guardado en «documentos»: ${nombre}`)
         setVista({ nombre, bytes })
@@ -78,7 +84,7 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
 
   const verExistente = async (def: DefDocumento) => {
     if (!dirRaiz || !registro) return
-    const nombre = nombreDocumento(registro, def)
+    const nombre = estados[def.id]?.archivo ?? nombreDocumento(registro, def)
     try {
       const { datos } = await fs.leerBytes(await fs.subcarpeta(dirRaiz, 'documentos'), nombre)
       setVista({ nombre, bytes: datos })
@@ -96,7 +102,7 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
     aviso(`${ok} de ${DOCUMENTOS.length} documentos guardados en «documentos».`, ok === DOCUMENTOS.length ? 'ok' : 'aviso')
   }
 
-  const datos = registro ? datosPlantilla(registro, ivaPct) : null
+  const datos = registro ? datosPlantilla(registro) : null
 
   return (
     <section aria-labelledby="t-docs" className="overflow-hidden rounded-xl border border-linea bg-white">
