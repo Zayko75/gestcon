@@ -65,13 +65,23 @@ export function camposFaltantes(etiquetas: string[], datos: Record<string, strin
   return etiquetas.filter((t) => (datos[t] ?? '').trim() === '').map((t) => NOMBRE_CAMPO[t] ?? t)
 }
 
+/**
+ * Margen superior mínimo: el logotipo de la cabecera a 1,25 cm del borde, como en los anexos y el contrato.
+ * Algunas plantillas (informes) lo tienen a 0,25 cm y el documento queda pegado al borde de la hoja.
+ */
+const CABECERA_MIN = 708 // twips (1,25 cm)
+function margenSuperior(xml: string): string {
+  return xml.replace(/<w:pgMar\b[^>]*>/g, (pgMar) =>
+    pgMar.replace(/w:header="(\d+)"/, (m, v: string) => (Number(v) < CABECERA_MIN ? `w:header="${CABECERA_MIN}"` : m)))
+}
+
 /** Rellena la plantilla y devuelve el .docx */
 export function generarDocx(plantilla: Uint8Array, datos: Record<string, string>): Uint8Array {
   const doc = new Docxtemplater(new PizZip(plantilla), { paragraphLoop: true, linebreaks: true, nullGetter: () => '' })
   doc.render(datos)
   const zip = doc.getZip()
   // Los tabuladores de los textos (lista de soportes) pasan a tabuladores reales de Word
-  const xml = zip.file('word/document.xml')!.asText()
+  const xml = margenSuperior(zip.file('word/document.xml')!.asText())
   const arreglado = xml.replace(/<w:t(\s[^>]*)?>([^<]*\t[^<]*)<\/w:t>/g, (_m, attrs: string | undefined, texto: string) => {
     const partes = texto.split('\t')
     return partes.map((t) => `<w:t xml:space="preserve">${t}</w:t>`).join('<w:tab/>')

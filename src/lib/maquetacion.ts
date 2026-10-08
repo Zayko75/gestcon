@@ -127,45 +127,57 @@ function partirTabla(t: HTMLTableElement, limite: number): HTMLTableElement | nu
   return nueva
 }
 
-/** Posiciones de texto de un párrafo, en orden: [nodo de texto, desplazamiento] */
-function posiciones(p: HTMLElement): [Text, number][] {
-  const out: [Text, number][] = []
+/** Todos los caracteres de un párrafo, en orden: [nodo de texto, desplazamiento, carácter] */
+function caracteres(p: HTMLElement): [Text, number, string][] {
+  const out: [Text, number, string][] = []
   const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT)
   for (let n = w.nextNode() as Text | null; n; n = w.nextNode() as Text | null) {
-    for (let k = 0; k < n.data.length; k++) if (n.data[k].trim()) out.push([n, k])
+    for (let k = 0; k < n.data.length; k++) out.push([n, k, n.data[k]])
   }
   return out
 }
 
+const esEspacio = (c: string) => /\s/.test(c)
+
 /**
  * Parte un párrafo por líneas, como Word: lo que no cabe pasa a un párrafo nuevo.
+ * Nunca corta una palabra: si la línea empieza con el final de una palabra partida con guion,
+ * la palabra entera pasa a la página siguiente.
  * Deja al menos 2 líneas en cada página (control de líneas viudas y huérfanas). Devuelve el párrafo nuevo o null.
  */
 function partirParrafo(p: HTMLElement, limite: number): HTMLElement | null {
-  const pos = posiciones(p)
-  if (pos.length < 2) return null
+  const chars = caracteres(p)
+  const visibles = chars.map((c, i) => i).filter((i) => !esEspacio(chars[i][2]))
+  if (visibles.length < 2) return null
   const r = document.createRange()
-  const rect = (i: number) => { r.setStart(pos[i][0], pos[i][1]); r.setEnd(pos[i][0], pos[i][1] + 1); return r.getBoundingClientRect() }
-  // Primer carácter que se sale de la página (búsqueda binaria: la posición vertical solo crece)
-  let lo = 0, hi = pos.length
-  while (lo < hi) { const m = (lo + hi) >> 1; if (rect(m).bottom > limite + 1) hi = m; else lo = m + 1 }
-  if (lo === 0 || lo === pos.length) return null
-  // Comienzo de cada línea
-  const lineas: number[] = [0]
-  for (let i = 1; i < pos.length; i++) if (rect(i).top > rect(i - 1).top + 2) lineas.push(i)
-  let corte = lineas.filter((i) => i <= lo).pop() ?? 0
+  const rect = (i: number) => { r.setStart(chars[i][0], chars[i][1]); r.setEnd(chars[i][0], chars[i][1] + 1); return r.getBoundingClientRect() }
+  // Primer carácter visible que se sale de la página (búsqueda binaria: la posición vertical solo crece)
+  let lo = 0, hi = visibles.length
+  while (lo < hi) { const m = (lo + hi) >> 1; if (rect(visibles[m]).bottom > limite + 1) hi = m; else lo = m + 1 }
+  if (lo === 0 || lo === visibles.length) return null
+  // Comienzo de cada línea (en índices de `chars`)
+  const lineas: number[] = [visibles[0]]
+  for (let k = 1; k < visibles.length; k++) if (rect(visibles[k]).top > rect(visibles[k - 1]).top + 2) lineas.push(visibles[k])
+  const primeroFuera = visibles[lo]
+  let corte = lineas.filter((i) => i <= primeroFuera).pop() ?? 0
   const antes = lineas.filter((i) => i < corte).length
   const despues = lineas.filter((i) => i >= corte).length
   if (antes < 2) return null // menos de 2 líneas: el párrafo entero pasa a la página siguiente
   if (despues < 2 && antes >= 3) corte = lineas[lineas.indexOf(corte) - 1] // deja al menos 2 líneas en la siguiente
-  r.setStart(pos[corte][0], pos[corte][1])
+  // No cortar dentro de una palabra (división con guion al final de la línea anterior)
+  const inicioLinea = corte
+  while (corte > 0 && !esEspacio(chars[corte - 1][2]) && chars[corte - 1][2] !== '-') corte--
+  const palabraMovida = corte !== inicioLinea
+  if (corte === 0) return null
+  r.setStart(chars[corte][0], chars[corte][1])
   r.setEnd(p, p.childNodes.length)
   const resto = p.cloneNode(false) as HTMLElement
   resto.appendChild(r.extractContents())
   resto.style.textIndent = '0' // la sangría de primera línea solo va al principio del párrafo
   resto.style.marginTop = '0'
   p.style.marginBottom = '0'
-  if (getComputedStyle(p).textAlign === 'justify') p.style.textAlignLast = 'justify' // la última línea de la página sigue justificada
+  // La última línea de la página sigue justificada, salvo que haya quedado corta al mover una palabra
+  if (getComputedStyle(p).textAlign === 'justify' && !palabraMovida) p.style.textAlignLast = 'justify'
   return resto
 }
 
