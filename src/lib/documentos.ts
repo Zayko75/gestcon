@@ -75,13 +75,60 @@ function margenSuperior(xml: string): string {
     pgMar.replace(/w:header="(\d+)"/, (m, v: string) => (Number(v) < CABECERA_MIN ? `w:header="${CABECERA_MIN}"` : m)))
 }
 
+/**
+ * Recuadros alineados: en los anexos, las tablas anchas (las que sobresalen del margen) tienen anchos algo
+ * distintos (9.630 a 9.675 twips) y la de soportes está desplazada con una sangría en vez de centrada.
+ * Se igualan todas al mismo ancho y centradas, repartiendo las columnas en proporción.
+ */
+const ANCHO_RECUADRO = 9660 // twips
+function tablasDePrimerNivel(xml: string): [number, number][] {
+  const out: [number, number][] = []
+  const re = /<w:tbl>|<\/w:tbl>/g
+  let nivel = 0, inicio = -1
+  for (let m = re.exec(xml); m; m = re.exec(xml)) {
+    if (m[0] === '<w:tbl>') { if (nivel++ === 0) inicio = m.index }
+    else if (--nivel === 0) out.push([inicio, m.index + m[0].length])
+  }
+  return out
+}
+function alinearRecuadros(xml: string): string {
+  let out = '', desde = 0
+  for (const [a, b] of tablasDePrimerNivel(xml)) {
+    let t = xml.slice(a, b)
+    const cols = [...t.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]))
+    const total = cols.reduce((x, y) => x + y, 0)
+    if (!t.slice(7).includes('<w:tbl>') && total >= 9600 && total <= 9700 && total !== ANCHO_RECUADRO || (total === ANCHO_RECUADRO && /<w:tblInd /.test(t))) {
+      const f = ANCHO_RECUADRO / total
+      const esc = (v: string) => String(Math.round(Number(v) * f))
+      t = t.replace(/<w:gridCol w:w="(\d+)"\/>/g, (_m, v) => `<w:gridCol w:w="${esc(v)}"/>`)
+        .replace(/<w:tcW w:w="(\d+)" w:type="dxa"\/>/g, (_m, v) => `<w:tcW w:w="${esc(v)}" w:type="dxa"/>`)
+        .replace(/<w:tblW w:w="\d+" w:type="dxa"\/>/, `<w:tblW w:w="${ANCHO_RECUADRO}" w:type="dxa"/>`)
+        .replace(/<w:tblInd w:w="-?\d+" w:type="dxa"\/>/, '')
+      // Centrada en la página, como las demás
+      t = /<w:tblPr>[\s\S]*?<w:jc w:val="[^"]*"\/>[\s\S]*?<\/w:tblPr>/.test(t.slice(0, t.indexOf('</w:tblPr>') + 10))
+        ? t.replace(/(<w:tblPr>[\s\S]*?)<w:jc w:val="[^"]*"\/>/, '$1<w:jc w:val="center"/>')
+        : t.replace(/(<w:tblW [^>]*\/>)/, '$1<w:jc w:val="center"/>')
+      // La última columna absorbe el redondeo para que el total sea exacto
+      const nuevas = [...t.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]))
+      const dif = ANCHO_RECUADRO - nuevas.reduce((x, y) => x + y, 0)
+      if (dif) {
+        const i = t.lastIndexOf('<w:gridCol w:w="')
+        t = t.slice(0, i) + t.slice(i).replace(/w:w="(\d+)"/, (_m, v) => `w:w="${Number(v) + dif}"`)
+      }
+    }
+    out += xml.slice(desde, a) + t
+    desde = b
+  }
+  return out + xml.slice(desde)
+}
+
 /** Rellena la plantilla y devuelve el .docx */
 export function generarDocx(plantilla: Uint8Array, datos: Record<string, string>): Uint8Array {
   const doc = new Docxtemplater(new PizZip(plantilla), { paragraphLoop: true, linebreaks: true, nullGetter: () => '' })
   doc.render(datos)
   const zip = doc.getZip()
   // Los tabuladores de los textos (lista de soportes) pasan a tabuladores reales de Word
-  const xml = margenSuperior(zip.file('word/document.xml')!.asText())
+  const xml = alinearRecuadros(margenSuperior(zip.file('word/document.xml')!.asText()))
   const arreglado = xml.replace(/<w:t(\s[^>]*)?>([^<]*\t[^<]*)<\/w:t>/g, (_m, attrs: string | undefined, texto: string) => {
     const partes = texto.split('\t')
     return partes.map((t) => `<w:t xml:space="preserve">${t}</w:t>`).join('<w:tab/>')
