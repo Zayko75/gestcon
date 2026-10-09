@@ -147,6 +147,18 @@ export function leerConfig(db: Database, clave: string, defecto: string): string
   }
 }
 
+/** Toda la configuración (tipo de IVA, créditos por aplicación, límite del contrato menor…) */
+export function listarConfig(db: Database): Record<string, string> {
+  const r = db.exec('SELECT clave, valor FROM configuracion')
+  return Object.fromEntries((r[0]?.values ?? []).map(([k, v]) => [String(k), String(v)]))
+}
+
+/** Guarda un valor de configuración; con null se borra */
+export function escribirConfig(db: Database, clave: string, valor: string | null): void {
+  if (valor === null) db.run('DELETE FROM configuracion WHERE clave=?', [clave])
+  else db.run('INSERT INTO configuracion(clave,valor) VALUES (?,?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor', [clave, valor])
+}
+
 // ---------- Migraciones ----------
 
 /** Actualiza el archivo a la última versión del esquema. Devuelve null si ya estaba al día. */

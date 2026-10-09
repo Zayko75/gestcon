@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { aBorrador, borradorVacio, deBorrador, letrasDe, type Borrador } from '../lib/borrador'
+import { creditoDe, delMismoAnio, limiteMenor, sinIva as sinIvaDe, usoConCambio } from '../lib/control'
 import { eur, importeSinIva, parseImporte } from '../lib/format'
 import { MUNICIPIOS } from '../lib/municipios'
 import { useStore } from '../lib/store'
@@ -41,7 +42,7 @@ function Seccion({ titulo, descripcion, children }: { titulo: string; descripcio
 }
 
 export function Ficha({ id }: { id: number | null }) {
-  const { registros, entidades, crear, actualizar, eliminar, copiaAhora, ivaPct } = useStore()
+  const { registros, entidades, crear, actualizar, eliminar, copiaAhora, ivaPct, config } = useStore()
   const aviso = useAviso()
   const guardado = id !== null ? registros.find((r) => r.id === id) : undefined
 
@@ -202,6 +203,14 @@ export function Ficha({ id }: { id: number | null }) {
   const ivaB = parseImporte(b.iva_pct) ?? ivaPct
   const sinIva = total !== null ? importeSinIva(total, ivaB) : null
   const letras = letrasDe(b)
+  // Contrato menor: el patrocinio solo y sumado a los demás de la misma entidad en el año
+  const limite = limiteMenor(config)
+  const otrosDelAnio = delMismoAnio(registros, { id, cif: b.cif, anualidad: anioNum })
+  const acumulado = sinIva !== null ? Math.round((otrosDelAnio.reduce((s, r) => s + sinIvaDe(r), 0) + sinIva) * 100) / 100 : null
+  // Crédito de la aplicación presupuestaria
+  const credito = /^\d{4}\/\d{4}\/\d{4}\/\d{5}$/.test(b.aplicacion) ? creditoDe(config, b.aplicacion) : null
+  const usoAplicacion = credito !== null ? usoConCambio(registros, b.aplicacion, id, total ?? 0) : null
+  const quedan = credito !== null && usoAplicacion !== null ? Math.round((credito - usoAplicacion) * 100) / 100 : null
   const enumeradosPropuestos = soportesEnumerados(variasLineas(b.soportes_cedidos), variasLineas(b.soportes_propios))
   const dni = b.dni_nie_representante.trim() ? letraDni(b.dni_nie_representante) : null
   const dniConFormato = formatoDni(b.dni_nie_representante)
@@ -254,6 +263,7 @@ export function Ficha({ id }: { id: number | null }) {
           <div className="overflow-hidden rounded-xl border border-linea bg-white" onBlurCapture={() => { if (id !== null) void guardarAhora() }}>
           <Seccion titulo="Entidad" descripcion="Quién recibe el patrocinio y cómo contactar.">
             <Campo id="f-entidad" etiqueta="Entidad" className="sm:col-span-2"
+              accion={guardado?.entidad_id ? <a href={`#/entidad/${guardado.entidad_id}`} className="mb-1.5 rounded text-[0.8rem] font-semibold text-indigo hover:underline">Ver sus patrocinios</a> : undefined}
               ayuda={id === null ? 'Si la entidad ya ha tenido patrocinios, elígela de la lista y se rellenarán sus datos.' : undefined}>
               <input {...texto('entidad')} onChange={(e) => cambiarEntidad(e.target.value)} list="lista-entidades" autoComplete="off" autoFocus={id === null} />
               <datalist id="lista-entidades">
@@ -317,12 +327,16 @@ export function Ficha({ id }: { id: number | null }) {
               aviso={contratoRepetido ? `Ya hay otro patrocinio de ${anioNum} con este número de contrato.` : undefined}>
               <input {...texto('num_contrato')} inputMode="numeric" />
             </Campo>
-            <Campo id="f-aplicacion" etiqueta="Aplicación presupuestaria" aviso={avisoAplicacion}
+            <Campo id="f-aplicacion" etiqueta="Aplicación presupuestaria"
+              aviso={avisoAplicacion ?? (quedan !== null && quedan < 0 ? `Con este patrocinio se supera el crédito de la aplicación en ${eur(-quedan)}.` : undefined)}
+              ayuda={quedan !== null ? <>Crédito {eur(credito!)}. Con este patrocinio quedan <strong className="font-semibold text-tinta/75">{eur(quedan)}</strong>.</> : <>Sin crédito indicado. Puedes ponerlo en <a className="underline" href="#/resumen">Resumen</a>.</>}
               accion={anioNum && /^\d{4}\//.test(b.aplicacion) && b.aplicacion.slice(0, 4) !== String(anioNum) ? <Accion onClick={() => set('aplicacion', String(anioNum) + b.aplicacion.slice(4))}>Cambiar el año a {anioNum}</Accion> : undefined}>
               <EntradaMascara id="f-aplicacion" className="campo" valor={b.aplicacion} formatear={formatoAplicacion}
                 onCambio={(v) => set('aplicacion', v)} inputMode="numeric" autoComplete="off" placeholder="0000/0000/0000/00000" />
             </Campo>
-            <Campo id="f-importe_total" etiqueta="Importe total (IVA incluido)" ayuda={sinIva !== null && total ? `Sin IVA: ${eur(sinIva)}. IVA: ${eur(Math.round(((total ?? 0) - sinIva) * 100) / 100)}.` : undefined}>
+            <Campo id="f-importe_total" etiqueta="Importe total (IVA incluido)"
+              aviso={sinIva !== null && sinIva > limite ? `Supera el límite del contrato menor: ${eur(sinIva)} sin IVA (límite ${eur(limite)}).` : undefined}
+              ayuda={sinIva !== null && total ? `Sin IVA: ${eur(sinIva)}. IVA: ${eur(Math.round(((total ?? 0) - sinIva) * 100) / 100)}.` : undefined}>
               <input {...texto('importe_total')} inputMode="decimal" placeholder="0,00" />
             </Campo>
             <Campo id="f-iva_pct" etiqueta="Tipo de IVA (%)" ayuda="Se guarda en cada patrocinio, para que un cambio futuro del IVA no altere los expedientes ya firmados.">
@@ -333,6 +347,19 @@ export function Ficha({ id }: { id: number | null }) {
               <p className="mt-1">{total ? letras.total : <span className="text-tinta/45">Escribe el importe total.</span>}</p>
               {total ? <p className="mt-1 text-[0.9rem] text-tinta/70">Sin IVA: {letras.sinIva}</p> : null}
             </div>
+            {acumulado !== null && otrosDelAnio.length > 0 && acumulado > limite && (
+              <div className="rounded-lg border border-aviso/30 bg-aviso/[.06] px-4 py-3 text-[0.9rem] sm:col-span-2" role="note">
+                <p className="font-medium text-aviso">
+                  En {anioNum} esta entidad suma {eur(acumulado)} sin IVA en {otrosDelAnio.length + 1} patrocinios, más que el límite del contrato menor ({eur(limite)}).
+                </p>
+                <p className="mt-1 text-tinta/70">Comprueba que son objetos distintos y no un mismo contrato fraccionado:</p>
+                <ul className="mt-1.5 space-y-0.5 text-tinta/80">
+                  {otrosDelAnio.map((r) => (
+                    <li key={r.id}><a className="underline decoration-tinta/30 underline-offset-2 hover:text-indigo" href={`#/registro/${r.id}`}>{r.evento || '(sin evento)'}</a>: {eur(sinIvaDe(r))} sin IVA</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <Campo id="f-importe_reding" etiqueta="Importe REDING"><input {...texto('importe_reding')} inputMode="decimal" placeholder="0,00" /></Campo>
             <Campo id="f-fecha_firma" etiqueta="Fecha de firma" ayuda="Solo se usa en el Informe de justificación"><input {...texto('fecha_firma')} type="date" /></Campo>
           </Seccion>

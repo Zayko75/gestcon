@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { Cabecera } from './components/Cabecera'
 import { PantallaConexion } from './components/Conexion'
 import { Copias } from './components/Copias'
+import { Entidades, FichaEntidad } from './components/Entidades'
+import { Pendientes } from './components/Pendientes'
+import { Resumen } from './components/Resumen'
 import { Ficha } from './components/Ficha'
 import { Listado } from './components/Listado'
 import { AvisosProvider, Dialogo } from './components/ui'
@@ -74,6 +77,10 @@ function Contenido() {
   if (m) pantalla = <Ficha key={m[1]} id={Number(m[1])} />
   else if (ruta === '/nuevo') pantalla = <Ficha key="nuevo" id={null} />
   else if (ruta.startsWith('/copias')) pantalla = <Copias />
+  else if (ruta === '/pendientes') pantalla = <Pendientes />
+  else if (ruta === '/resumen') pantalla = <Resumen />
+  else if (ruta === '/entidades') pantalla = <Entidades />
+  else if (/^\/entidad\/\d+$/.test(ruta)) pantalla = <FichaEntidad key={ruta} id={Number(ruta.split('/')[2])} />
   else pantalla = <Listado />
 
   return (

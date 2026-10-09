@@ -27,6 +27,9 @@ interface Ctx {
   guardado: EstadoGuardado
   conflicto: boolean
   ivaPct: number
+  /** Configuración guardada en datos.sqlite (créditos por aplicación, límite del contrato menor…) */
+  config: Record<string, string>
+  guardarConfig: (clave: string, valor: string | null) => Promise<void>
   dirRaiz: fs.Carpeta | null
   continuar: () => Promise<void>
   elegirOtra: () => Promise<void>
@@ -62,6 +65,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [guardado, setGuardado] = useState<EstadoGuardado>({ estado: 'guardado' })
   const [conflicto, setConflicto] = useState(false)
   const [ivaPct, setIvaPct] = useState(21)
+  const [config, setConfig] = useState<Record<string, string>>({})
   const [dirRaiz, setDirRaiz] = useState<fs.Carpeta | null>(null)
   const [nombreCarpeta, setNombreCarpeta] = useState('')
 
@@ -79,6 +83,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!db.current) return
     setRegistros(bd.listar(db.current))
     setEntidades(bd.listarEntidades(db.current))
+    setConfig(bd.listarConfig(db.current))
   }, [])
 
   /** Abre datos.sqlite de la carpeta, hace la copia automática y lista los registros */
@@ -240,6 +245,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const crear = useCallback((d: DatosPatrocinio) => mutar((x) => bd.insertar(x, d)), [mutar])
   const actualizar = useCallback((id: number, d: DatosPatrocinio) => mutar((x) => bd.actualizar(x, id, d)), [mutar])
   const eliminar = useCallback((id: number) => mutar((x) => bd.eliminar(x, id)), [mutar])
+  const guardarConfig = useCallback((clave: string, valor: string | null) => mutar((x) => bd.escribirConfig(x, clave, valor)), [mutar])
 
   const resolverConflicto = useCallback(async (sobrescribir: boolean) => {
     if (sobrescribir) {
@@ -289,13 +295,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [guardado.estado])
 
   const valor = useMemo<Ctx>(() => ({
-    fase, error, nombreCarpeta, registros, entidades, informeMigracion, cerrarInforme: () => setInformeMigracion(null), guardado, conflicto, ivaPct, dirRaiz, sesionCaducada,
+    fase, error, nombreCarpeta, registros, entidades, informeMigracion, cerrarInforme: () => setInformeMigracion(null), guardado, conflicto, ivaPct, config, guardarConfig, dirRaiz, sesionCaducada,
     carpetaGuardada: conexion ? { tipo: conexion.tipo, nombre: conexion.nombre } : null,
     origen: dirRaiz?.tipo ?? null,
     continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar,
     crearBDVacia, crear, actualizar, eliminar, resolverConflicto,
     listarCopias: listar, copiaAhora, restaurar,
-  }), [fase, error, conexion, nombreCarpeta, registros, entidades, informeMigracion, guardado, conflicto, ivaPct, dirRaiz, sesionCaducada,
+  }), [fase, error, conexion, nombreCarpeta, registros, entidades, informeMigracion, guardado, conflicto, ivaPct, config, guardarConfig, dirRaiz, sesionCaducada,
     continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar,
     crearBDVacia, crear, actualizar, eliminar, resolverConflicto, listar, copiaAhora, restaurar])
 

@@ -98,18 +98,36 @@ Patrocinios/
 - La primera vez que abres la aplicación cada día se crea una copia de seguridad automática.
 - Si el `datos.sqlite` es de una versión anterior, la aplicación lo actualiza sola (antes guarda una copia en `backups/`) y muestra un resumen de lo que ha cambiado.
 
-**Listado.** Escribe en *Buscar* parte de la entidad, evento, CIF, municipio o nº de contrato. Filtra por anualidad o por estado (pendientes / tramitados). Pulsa en una fila para abrir su ficha. *Nuevo patrocinio* crea un registro.
+**Listado.** Escribe en *Buscar* parte de la entidad, evento, CIF, municipio o nº de contrato. Filtra por anualidad y por estado. En **Más filtros** puedes filtrar además por municipio, aplicación presupuestaria, importe (desde / hasta) y fecha del evento. Encima de la tabla se ve cuántos patrocinios coinciden y su importe total. Pulsa en una fila para abrir su ficha. *Nuevo patrocinio* crea un registro.
+
+**Exportar a Excel.** El botón *Exportar a Excel* del listado descarga un `.xlsx` con los patrocinios que se están viendo (todos o solo los filtrados), con todos sus datos, la cabecera fija, filtros en cada columna y una fila de totales.
+
+**Pendientes.** Reúne lo que queda por hacer en los expedientes no tramitados. El número junto a *Pendientes* en el menú cuenta los dos primeros grupos:
+- *Firmar antes del evento*: en preparación o pendientes de firma, con el evento en los próximos 30 días o ya celebrado.
+- *Por justificar*: el evento ya se celebró (o venció el plazo de ejecución) y el expediente no está tramitado.
+- *Próximos eventos*: firmados, con el evento en los próximos 30 días.
+- *Sin firmar*: el resto de los que están en preparación o pendientes de firma.
+
+**Entidades.** Lista de entidades con su número de patrocinios, el último año y el importe total. En la ficha de una entidad se ven sus patrocinios agrupados por año, con lo que suman con y sin IVA. **Renovar para…** crea un patrocinio nuevo copiando el último (entidad, evento, municipios, soportes e importe), en estado «En preparación» y sin nº de contrato, fechas ni fecha de firma. Desde la ficha de un patrocinio, *Ver sus patrocinios* lleva a la de su entidad.
+
+**Resumen.** Elige el año arriba a la derecha.
+- *Crédito por aplicación presupuestaria*: escribe el crédito de cada aplicación y verás lo comprometido (en firme y en curso), lo que queda y si se supera. El crédito se guarda en `datos.sqlite`. Para preparar otro año, usa *Indicar el crédito de otra aplicación*.
+- *Por estado*, *Eventos por mes* y *Municipios con más patrocinios*. Pulsando un estado se abre el listado filtrado.
+- *Límite del contrato menor*: 15.000 € sin IVA por defecto (se puede cambiar) y las entidades que lo superan sumando sus patrocinios del año.
 
 **Ficha.**
 - Los cambios se guardan solos (arriba aparece «Guardado a las…»). No hay botón de guardar.
 - Un patrocinio nuevo se guarda al pulsar **Crear patrocinio**; a partir de ahí se guarda solo.
 - **Estado del expediente**: En preparación, Pendiente de firma, Firmado o Tramitado. En el listado, «Pendientes» son todos los que aún no están tramitados.
 - **Entidad**: en un patrocinio nuevo, al elegir una entidad que ya ha tenido patrocinios se rellenan su CIF, representante, DNI/NIE, teléfono y email. Cada patrocinio guarda su propia copia de esos datos, que es la que se imprime.
-- **Anualidad**: al escribirla se propone la aplicación presupuestaria de ese año; si no coinciden, se avisa.
+- **Anualidad**: un patrocinio nuevo empieza con el año en curso y la aplicación `año/1301/3411/22608`. Al cambiar la anualidad cambia también el año de la aplicación; si no coinciden, se avisa.
+- **DNI/NIE** y **Aplicación presupuestaria** tienen máscara: los puntos, guiones y barras se ponen solos (`12.345.678-Z`, `X-1234567-L`, `2026/1301/3411/22608`). Si la letra del DNI/NIE no corresponde al número, se avisa.
+- **Avisos de importe**: si el importe sin IVA supera el límite del contrato menor, si la entidad lo supera sumando sus patrocinios del año, o si la aplicación presupuestaria se queda sin crédito (cuando se ha indicado en *Resumen*). Son avisos: no impiden guardar.
 - **Nº de contrato**: se reinicia cada año, así que puede repetirse entre años. Solo se avisa si se repite dentro de la misma anualidad.
 - **Fechas del evento**: primer y último día como fechas; el texto de celebración se propone solo y se puede retocar (para días sueltos, escríbelo a mano).
 - **Importe en letra**: se escribe solo a partir del importe y del tipo de IVA del patrocinio.
-- **Soportes enumerados**: si se deja vacío se rellena con las dos listas; el botón «Rellenar a partir de las listas» lo rehace.
+- **Soportes cedidos y propios**: escribe un soporte y pulsa **Intro**. Mientras escribes se proponen los usados en otros patrocinios (la primera propuesta se añade con Intro; las flechas eligen otra). Pulsa un soporte para corregirlo; las flechas lo suben o bajan y la ✕ lo quita. Se guardan como siempre, uno por línea con guion («- Soporte.»).
+- **Soportes enumerados**: se vuelve a escribir solo, con las dos listas separadas por comas, cada vez que añades, quitas u ordenas un soporte. Se puede retocar.
 - **Duplicar** crea una copia del patrocinio sin nº de contrato ni fecha de firma (útil cuando una entidad repite).
 - **Eliminar** pide confirmación y deja antes una copia de seguridad.
 - Los importes se escriben en formato español (`4.235,00` o `4235,5`). El importe sin IVA y el IVA se calculan con el tipo de IVA del patrocinio (21 % por defecto).
