@@ -104,20 +104,92 @@ export function textoDeFechas(inicio: string, fin: string): string {
 }
 
 // ---------- Soportes ----------
-/** Elementos de una lista escrita uno por línea («- Pancartas.» → «Pancartas») */
-export function elementosLista(texto: string): string[] {
-  return texto.split(/\r?\n/)
-    .map((l) => l.replace(/^[\s\-–•·*]+/, '').trim().replace(/[.;,]+$/, '').trim())
-    .filter((l) => l !== '' && l !== '.')
+/** Viñeta al principio de una línea: «- », «–\t», «• », «1. », «2) »… */
+const VINETA = /^\s*(?:[-–•·*]|\d{1,2}[.)])\s*/
+
+/** Un soporte de la lista: el texto original (tal cual se guarda e imprime) y el texto limpio para mostrar */
+export interface Soporte { original: string; texto: string }
+
+const limpioSoporte = (s: string) => s.replace(VINETA, '').replace(/\s+/g, ' ').trim().replace(/[.;,]+$/, '').trim()
+
+/**
+ * Separa una lista de soportes en elementos sin cambiar su texto: si las líneas llevan viñeta, una línea sin
+ * viñeta continúa el soporte anterior (textos partidos en dos líneas); si no hay viñetas, cada línea es un soporte.
+ * Un «.» suelto (lista vacía en los expedientes antiguos) no cuenta como soporte.
+ */
+export function soportesDeTexto(texto: string): Soporte[] {
+  const lineas = texto.replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim() !== '' && l.trim() !== '.')
+  const conVineta = lineas.some((l) => VINETA.test(l))
+  const out: string[] = []
+  for (const l of lineas) {
+    if (conVineta && !VINETA.test(l) && out.length) out[out.length - 1] += '\n' + l
+    else out.push(l)
+  }
+  return out.map((original) => ({ original, texto: limpioSoporte(original) })).filter((x) => x.texto !== '')
 }
 
-/** Une cedidos y propios en una frase: «Pancartas, cartel del evento y difusión en redes sociales» */
-export function soportesEnumerados(cedidos: string, propios: string): string {
-  const items = [...elementosLista(cedidos), ...elementosLista(propios)]
-    .map((s, i) => (i > 0 && /^[A-ZÁÉÍÓÚÑ][a-záéíóúñü]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s))
-  if (items.length <= 1) return items.join('')
-  return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`
+/** Texto de la lista, tal como se guarda: los soportes que ya estaban conservan su texto exacto */
+export const textoDeSoportes = (lista: Soporte[]) => lista.map((x) => x.original).join('\n')
+
+/** Soporte nuevo con el formato habitual de los expedientes: «- Presencia en cartel del evento.» */
+export function nuevoSoporte(texto: string): Soporte {
+  const t = limpioSoporte(texto)
+  return { original: `- ${t}${/[.!?)»"]$/.test(t) ? '' : '.'}`, texto: t }
 }
+
+/** Clave para comparar soportes sin distinguir mayúsculas, tildes, puntuación ni singular/plural («Pancarta» = «Pancartas») */
+export const claveSoporte = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9ñ]+/g, ' ').trim()
+  .split(' ').map((p) => (p.length > 3 ? p.replace(/s$/, '') : p)).join(' ')
+
+/** Elementos de una lista escrita uno por línea («- Pancartas.» → «Pancartas») */
+export const elementosLista = (texto: string): string[] => soportesDeTexto(texto).map((x) => x.texto)
+
+/** Une cedidos y propios en una frase, separados por comas y tal como están escritos (como en los expedientes) */
+export function soportesEnumerados(cedidos: string, propios: string): string {
+  return [...elementosLista(cedidos), ...elementosLista(propios)].join(', ')
+}
+
+// ---------- Máscaras de entrada ----------
+const LETRAS_DNI = 'TRWAGMYFPDXBNJZSQVHLCKE'
+
+/**
+ * DNI «12.345.678-Z» y NIE «X-1234567-L». Se aplica mientras se escribe; si el texto no empieza
+ * por número ni por X, Y o Z (pasaporte, etc.) solo se pasa a mayúsculas.
+ */
+export function formatoDni(valor: string): string {
+  const s = valor.toUpperCase().replace(/[^0-9A-Z]/g, '')
+  if (/^[XYZ]/.test(s)) {
+    const num = /^\d{0,7}/.exec(s.slice(1))![0]
+    const letra = /^[A-Z]/.exec(s.slice(1 + num.length))?.[0] ?? ''
+    return s[0] + (num ? '-' + num : '') + (letra ? '-' + letra : '')
+  }
+  if (/^\d/.test(s)) {
+    const num = /^\d{0,8}/.exec(s)![0]
+    const letra = /^[A-Z]/.exec(s.slice(num.length))?.[0] ?? ''
+    // Completo (con letra): miles agrupados desde la derecha (5.380.138-V); mientras se escribe, 12.345.678
+    const grupos = letra ? num.replace(/\B(?=(\d{3})+$)/g, '.') : num.slice(0, 2) + (num.length > 2 ? '.' + num.slice(2, 5) : '') + (num.length > 5 ? '.' + num.slice(5, 8) : '')
+    return grupos + (letra ? '-' + letra : '')
+  }
+  return valor.toUpperCase().trim()
+}
+
+/** Letra que corresponde a un DNI/NIE completo, o null si el texto no es un DNI/NIE completo */
+export function letraDni(valor: string): { correcta: string; escrita: string } | null {
+  const s = valor.toUpperCase().replace(/[^0-9A-Z]/g, '')
+  const m = /^([XYZ]\d{7}|\d{7,8})([A-Z])$/.exec(s)
+  if (!m) return null
+  const n = Number(m[1].replace(/^X/, '0').replace(/^Y/, '1').replace(/^Z/, '2'))
+  return { correcta: LETRAS_DNI[n % 23], escrita: m[2] }
+}
+
+/** Aplicación presupuestaria «2026/1301/3411/22608»: solo cifras, las barras se ponen solas */
+export function formatoAplicacion(valor: string): string {
+  const d = valor.replace(/\D/g, '').slice(0, 17)
+  return [d.slice(0, 4), d.slice(4, 8), d.slice(8, 12), d.slice(12, 17)].filter(Boolean).join('/')
+}
+
+/** Aplicación presupuestaria por defecto de una anualidad */
+export const aplicacionPorDefecto = (anio: number | string) => `${anio}/1301/3411/22608`
 
 // ---------- Limpieza ----------
 /** Quita espacios al principio y al final y deja un solo espacio entre palabras (textos de una línea) */

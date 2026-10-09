@@ -1,6 +1,6 @@
 import type { DatosPatrocinio, Estado, Patrocinio } from '../types'
 import { importeSinIva, numeroES, parseImporte } from './format'
-import { emailValido, letraCoherente, soportesEnumerados, unaLinea, variasLineas } from './textos'
+import { aplicacionPorDefecto, emailValido, letraCoherente, soportesEnumerados, unaLinea, variasLineas } from './textos'
 
 /** Estado del formulario: todo como texto, como lo escribe el usuario */
 export interface Borrador {
@@ -16,12 +16,13 @@ export interface Borrador {
 }
 
 export function borradorVacio(ivaPct = 21): Borrador {
+  const anio = new Date().getFullYear()
   return {
     estado: 'preparacion', entidad: '', cif: '', representante_legal: '', dni_nie_representante: '', telefono: '', email: '',
-    anualidad: String(new Date().getFullYear()), evento: '', fecha_celebracion: '', fecha_inicio: '', fecha_fin: '',
+    anualidad: String(anio), evento: '', fecha_celebracion: '', fecha_inicio: '', fecha_fin: '',
     plazo_ejecucion: '', municipios: '', soportes_cedidos: '', soportes_propios: '', soportes_enumerados: '',
     num_contrato: '', importe_total: '', iva_pct: numeroES(ivaPct).replace(/,00$/, ''), importe_letra: '', importe_letra_sin_iva: '',
-    aplicacion: '', importe_reding: '', fecha_firma: '',
+    aplicacion: aplicacionPorDefecto(anio), importe_reding: '', fecha_firma: '',
   }
 }
 

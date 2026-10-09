@@ -3,8 +3,10 @@ import { aBorrador, borradorVacio, deBorrador, letrasDe, type Borrador } from '.
 import { eur, importeSinIva, parseImporte } from '../lib/format'
 import { MUNICIPIOS } from '../lib/municipios'
 import { useStore } from '../lib/store'
-import { claveCif, emailValido, soportesEnumerados, textoDeFechas, variasLineas } from '../lib/textos'
+import { aplicacionPorDefecto, claveCif, emailValido, formatoAplicacion, formatoDni, letraDni, soportesEnumerados, textoDeFechas, variasLineas } from '../lib/textos'
 import type { Entidad, Estado, Patrocinio } from '../types'
+import { EntradaMascara } from './EntradaMascara'
+import { ListaSoportes, sugerenciasDeSoportes } from './ListaSoportes'
 import { PanelDocumentos } from './PanelDocumentos'
 import { Dialogo, Dorsal, ESTADOS, useAviso } from './ui'
 
@@ -25,18 +27,6 @@ function Campo({ id, etiqueta, ayuda, aviso, accion, children, className = '' }:
 const Accion = ({ onClick, children }: { onClick: () => void; children: ReactNode }) => (
   <button type="button" onClick={onClick} className="mb-1.5 rounded text-[0.8rem] font-semibold text-indigo hover:underline">{children}</button>
 )
-
-/** Aplicación presupuestaria propuesta para un año: la más usada ese año o la última con el año cambiado */
-function aplicacionPara(anio: number, registros: Patrocinio[]): string {
-  const delAnio = registros.filter((r) => r.anualidad === anio && /^\d{4}\//.test(r.aplicacion))
-  if (delAnio.length) {
-    const cuenta = new Map<string, number>()
-    for (const r of delAnio) cuenta.set(r.aplicacion, (cuenta.get(r.aplicacion) ?? 0) + 1)
-    return [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0][0]
-  }
-  const ultima = [...registros].reverse().find((r) => /^\d{4}\//.test(r.aplicacion))
-  return ultima ? `${anio}${ultima.aplicacion.slice(4)}` : ''
-}
 
 function Seccion({ titulo, descripcion, children }: { titulo: string; descripcion: string; children: ReactNode }) {
   return (
@@ -87,11 +77,11 @@ export function Ficha({ id }: { id: number | null }) {
   const cambiarAnualidad = (v: string) => {
     setB((x) => {
       const n = Number(v)
-      const prop = Number.isInteger(n) && n >= 2000 && n <= 2100 ? aplicacionPara(n, registros) : ''
-      // Propone la aplicación si está vacía o era la propuesta del año anterior
-      const anterior = Number(x.anualidad)
-      const eraPropuesta = x.aplicacion === '' || (Number.isInteger(anterior) && x.aplicacion === aplicacionPara(anterior, registros))
-      return { ...x, anualidad: v, aplicacion: prop && eraPropuesta ? prop : x.aplicacion }
+      if (!/^\d{4}$/.test(v) || n < 2000 || n > 2100) return { ...x, anualidad: v }
+      // Vacía: la de por defecto. Si era del año anterior, cambia solo el año.
+      if (x.aplicacion === '') return { ...x, anualidad: v, aplicacion: aplicacionPorDefecto(n) }
+      if (/^\d{4}\//.test(x.aplicacion) && x.aplicacion.slice(0, 4) === x.anualidad) return { ...x, anualidad: v, aplicacion: v + x.aplicacion.slice(4) }
+      return { ...x, anualidad: v }
     })
   }
 
@@ -105,6 +95,18 @@ export function Ficha({ id }: { id: number | null }) {
       return nuevo
     })
   }
+
+  // Soportes usados en todos los patrocinios, para proponerlos al escribir
+  const sugerencias = useMemo(() => ({
+    cedidos: sugerenciasDeSoportes({ aqui: registros.map((r) => r.soportes_cedidos), otra: registros.map((r) => r.soportes_propios) }),
+    propios: sugerenciasDeSoportes({ aqui: registros.map((r) => r.soportes_propios), otra: registros.map((r) => r.soportes_cedidos) }),
+  }), [registros])
+
+  /** Al añadir, quitar u ordenar soportes, «Soportes enumerados» se vuelve a escribir con las dos listas */
+  const cambiarSoportes = (k: 'soportes_cedidos' | 'soportes_propios', v: string) => setB((x) => {
+    const nuevo = { ...x, [k]: v }
+    return { ...nuevo, soportes_enumerados: soportesEnumerados(nuevo.soportes_cedidos, nuevo.soportes_propios) }
+  })
 
   /** Guarda ya (sin esperar al temporizador). Devuelve true si los datos quedaron guardados. */
   const guardarAhora = useCallback(async (): Promise<boolean> => {
@@ -201,6 +203,8 @@ export function Ficha({ id }: { id: number | null }) {
   const sinIva = total !== null ? importeSinIva(total, ivaB) : null
   const letras = letrasDe(b)
   const enumeradosPropuestos = soportesEnumerados(variasLineas(b.soportes_cedidos), variasLineas(b.soportes_propios))
+  const dni = b.dni_nie_representante.trim() ? letraDni(b.dni_nie_representante) : null
+  const dniConFormato = formatoDni(b.dni_nie_representante)
   const textoFechas = textoDeFechas(b.fecha_inicio, b.fecha_fin)
 
   const registroParaDocs: Patrocinio | null = guardado && 'datos' in parsed ? { ...guardado, ...parsed.datos } : null
@@ -261,7 +265,13 @@ export function Ficha({ id }: { id: number | null }) {
               <input {...texto('cif')} />
             </Campo>
             <Campo id="f-representante_legal" etiqueta="Representante legal"><input {...texto('representante_legal')} /></Campo>
-            <Campo id="f-dni_nie_representante" etiqueta="DNI/NIE del representante"><input {...texto('dni_nie_representante')} /></Campo>
+            <Campo id="f-dni_nie_representante" etiqueta="DNI/NIE del representante"
+              aviso={dni && dni.correcta !== dni.escrita ? `La letra no corresponde a este número: debería ser ${dni.correcta}.` : undefined}
+              accion={b.dni_nie_representante && dniConFormato !== b.dni_nie_representante ? <Accion onClick={() => set('dni_nie_representante', dniConFormato)}>Poner en formato</Accion> : undefined}
+              ayuda="DNI 12.345.678-Z o NIE X-1234567-L. Los puntos y guiones se ponen solos.">
+              <EntradaMascara id="f-dni_nie_representante" className="campo" valor={b.dni_nie_representante} formatear={formatoDni}
+                onCambio={(v) => set('dni_nie_representante', v)} autoComplete="off" spellCheck={false} placeholder="12.345.678-Z" maxLength={14} />
+            </Campo>
             <Campo id="f-telefono" etiqueta="Teléfono"><input {...texto('telefono')} inputMode="tel" /></Campo>
             <Campo id="f-email" etiqueta="Email" className="sm:col-span-2"
               aviso={!emailValido(b.email) ? 'El email no parece válido.' : undefined}
@@ -291,15 +301,13 @@ export function Ficha({ id }: { id: number | null }) {
                 {MUNICIPIOS.map((m) => <option key={m} value={m} />)}
               </datalist>
             </Campo>
-            <Campo id="f-soportes_cedidos" etiqueta="Soportes cedidos por la Diputación" ayuda="Uno por línea">
-              <textarea {...texto('soportes_cedidos')} rows={5} />
-            </Campo>
-            <Campo id="f-soportes_propios" etiqueta="Soportes propios de la entidad" ayuda="Uno por línea">
-              <textarea {...texto('soportes_propios')} rows={5} />
-            </Campo>
+            <ListaSoportes className="sm:col-span-2" id="f-soportes_cedidos" etiqueta="Soportes cedidos por la Diputación" valor={b.soportes_cedidos}
+              onCambio={(v) => cambiarSoportes('soportes_cedidos', v)} sugerencias={sugerencias.cedidos} />
+            <ListaSoportes className="sm:col-span-2" id="f-soportes_propios" etiqueta="Soportes propios de la entidad" valor={b.soportes_propios}
+              onCambio={(v) => cambiarSoportes('soportes_propios', v)} sugerencias={sugerencias.propios} />
             <Campo id="f-soportes_enumerados" etiqueta="Soportes enumerados" className="sm:col-span-2"
               accion={enumeradosPropuestos && enumeradosPropuestos !== b.soportes_enumerados ? <Accion onClick={() => set('soportes_enumerados', enumeradosPropuestos)}>Rellenar a partir de las listas</Accion> : undefined}
-              ayuda="Las dos listas en una frase (Informes económico y de justificación). Si lo dejas vacío, se rellena solo.">
+              ayuda="Se escribe solo con las dos listas, separadas por comas, cada vez que añades o quitas un soporte. Puedes retocarlo; sale en los informes económico y de justificación.">
               <textarea {...texto('soportes_enumerados')} rows={3} />
             </Campo>
           </Seccion>
@@ -310,8 +318,9 @@ export function Ficha({ id }: { id: number | null }) {
               <input {...texto('num_contrato')} inputMode="numeric" />
             </Campo>
             <Campo id="f-aplicacion" etiqueta="Aplicación presupuestaria" aviso={avisoAplicacion}
-              accion={anioNum && b.aplicacion && b.aplicacion.slice(0, 4) !== String(anioNum) && aplicacionPara(anioNum, registros) ? <Accion onClick={() => set('aplicacion', aplicacionPara(anioNum, registros))}>Usar la de {anioNum}</Accion> : undefined}>
-              <input {...texto('aplicacion')} placeholder="2026/1301/3411/22608" />
+              accion={anioNum && /^\d{4}\//.test(b.aplicacion) && b.aplicacion.slice(0, 4) !== String(anioNum) ? <Accion onClick={() => set('aplicacion', String(anioNum) + b.aplicacion.slice(4))}>Cambiar el año a {anioNum}</Accion> : undefined}>
+              <EntradaMascara id="f-aplicacion" className="campo" valor={b.aplicacion} formatear={formatoAplicacion}
+                onCambio={(v) => set('aplicacion', v)} inputMode="numeric" autoComplete="off" placeholder="0000/0000/0000/00000" />
             </Campo>
             <Campo id="f-importe_total" etiqueta="Importe total (IVA incluido)" ayuda={sinIva !== null && total ? `Sin IVA: ${eur(sinIva)}. IVA: ${eur(Math.round(((total ?? 0) - sinIva) * 100) / 100)}.` : undefined}>
               <input {...texto('importe_total')} inputMode="decimal" placeholder="0,00" />
