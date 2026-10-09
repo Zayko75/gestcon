@@ -70,7 +70,7 @@ Las siguientes veces basta con pulsar **Continuar con «Patrocinios»** y confir
 - La sesión de Google dura una hora. Si caduca mientras trabajas, arriba aparece **Reconectar con Google**: los cambios no se pierden, se guardan al reconectar.
 - Mientras la aplicación esté en modo «Prueba» en Google Cloud, Google puede pedirte que aceptes los permisos de nuevo cada semana. Para evitarlo, en **Público** pulsa **Publicar aplicación** (seguirá saliendo el aviso de aplicación no verificada, que puedes ignorar porque la aplicación es tuya). Para publicarla, Google pide antes la página principal y la política de privacidad en **Información de la marca**: usa la dirección de la aplicación y la página `privacidad.html` que se publica con ella.
 - La aplicación pide acceso a tu Drive para poder leer y escribir en la carpeta `Patrocinios`; solo toca esa carpeta.
-- Las copias de seguridad antiguas se mueven a la papelera de Drive, que se vacía sola a los 30 días.
+- Cuando se hace una copia de seguridad nueva, la anterior se mueve a la papelera de Drive, que se vacía sola a los 30 días.
 - Si abres la aplicación en dos ordenadores a la vez, avisará de que «El archivo de datos ha cambiado».
 
 ## Parte 3 · Alternativa: carpeta del ordenador o de red
@@ -96,7 +96,7 @@ Patrocinios/
 - Las siguientes veces pulsa **Continuar con «Patrocinios»** y confirma la cuenta de Google o el permiso de la carpeta.
 - **Cambiar carpeta** (arriba a la derecha) vuelve a la pantalla de conexión.
 - Después hay que identificarse: con Drive, la cuenta de Google; con una carpeta de red, usuario y contraseña (Parte 5).
-- La primera vez que alguien con permiso de edición abre la aplicación cada día se crea una copia de seguridad automática.
+- La primera vez que alguien con permiso de edición abre la aplicación cada día se crea una copia de seguridad automática, que sustituye a la anterior.
 - Si el `datos.sqlite` es de una versión anterior, la aplicación lo actualiza sola (antes guarda una copia en `backups/`) y muestra un resumen de lo que ha cambiado.
 
 **Listado.** Escribe en *Buscar* parte de la entidad, evento, CIF, municipio o nº de contrato. Filtra por anualidad y por estado. En **Más filtros** puedes filtrar además por municipio, aplicación presupuestaria, importe (desde / hasta) y fecha del evento. Encima de la tabla se ve cuántos patrocinios coinciden y su importe total. Pulsa en una fila para abrir su ficha. *Nuevo patrocinio* crea un registro.
@@ -144,7 +144,7 @@ Patrocinios/
 
 > La aplicación no puede convertir a PDF por sí sola y guardarlo en la carpeta sin intervención (los navegadores no lo permiten). El Word se guarda automáticamente; el PDF se obtiene en un paso desde la vista previa.
 
-**Copias de seguridad** (solo administradores). En *Copias de seguridad* se ven las copias de la carpeta `backups/` (se conservan las automáticas de los últimos 30 días y las 30 últimas del resto: manuales, antes de eliminar, restaurar o actualizar). Se puede **Crear copia ahora** y **Restaurar** cualquiera; antes de restaurar se guarda una copia de los datos actuales, así que se puede deshacer.
+**Copias de seguridad** (solo administradores). En la carpeta `backups/` se guarda **una sola copia** de los datos: cada copia nueva sustituye a la anterior. Se hace sola la primera vez que se abre la aplicación cada día, y también antes de eliminar un patrocinio, de restaurar o de actualizar la base de datos. En *Copias de seguridad* se puede **Crear copia ahora** y **Restaurar** la que hay; antes de restaurar se guarda como copia el estado actual, así que se puede deshacer.
 
 **Trabajar varios a la vez.** Cada cambio se guarda solo con los campos que has tocado. Antes de escribir, la aplicación relee `datos.sqlite` y aplica encima tus cambios, así que si otra persona ha modificado otros datos (incluso del mismo patrocinio) se conservan los de los dos. Cada 15 segundos (y al volver a la ventana) recoge lo que han guardado los demás; si alguien cambia el patrocinio que tienes abierto, la ficha se actualiza y te avisa. Si los dos cambiáis el mismo campo a la vez, queda el último que se guarda. Bajo el nombre de cada patrocinio se ve quién lo modificó por última vez.
 
@@ -223,7 +223,7 @@ src/
 │   ├── store.tsx               estado, identidad, guardado y sincronización entre usuarios
 │   ├── operaciones.ts          cambios como operaciones: combinar y comprobar que no se pierden
 │   ├── acceso.ts               roles, permisos y contraseñas (PBKDF2)
-│   ├── backups.ts              copias automáticas (últimas 30)
+│   ├── backups.ts              copia de seguridad (se conserva una sola)
 │   ├── documentos.ts           docxtemplater + PizZip, nombres de archivo, datos de las plantillas
 │   ├── format.ts               importes, fechas y campaña
 │   ├── control.ts              contrato menor, crédito por aplicación, pendientes, municipios

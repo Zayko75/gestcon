@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { MAX_COPIAS } from '../lib/backups'
 import { fechaHoraES, tamanoLegible } from '../lib/format'
 import { useStore } from '../lib/store'
 import type { Copia } from '../types'
@@ -54,7 +53,7 @@ export function Copias() {
         <div>
           <h1 className="titulo">Copias de seguridad</h1>
           <p className="mt-2 max-w-xl text-tinta/65">
-            La primera vez que abres la aplicación cada día se guarda una copia de los datos en la carpeta «backups». Se conservan las de los últimos {MAX_COPIAS} días, además de las {MAX_COPIAS} últimas copias manuales o hechas antes de eliminar o restaurar.
+            Se guarda una sola copia de los datos en la carpeta «backups»: cada copia nueva sustituye a la anterior. Se hace sola la primera vez que se abre la aplicación cada día, y también antes de eliminar un patrocinio o de restaurar.
           </p>
         </div>
         <button className="btn-primario" onClick={crear} disabled={ocupado}>{ocupado ? 'Creando copia…' : 'Crear copia ahora'}</button>
