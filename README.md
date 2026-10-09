@@ -191,8 +191,8 @@ Estructura:
 
 ```
 src/
-├── App.tsx                     rutas (#/, #/registro/ID, #/nuevo, #/copias)
-├── components/                 pantallas: Listado, Ficha, PanelDocumentos, Copias, VistaPrevia…
+├── App.tsx                     rutas (#/, #/registro/ID, #/nuevo, #/pendientes, #/entidades, #/entidad/ID, #/resumen, #/copias)
+├── components/                 pantallas: Listado, Ficha, Pendientes, Entidades, Resumen, PanelDocumentos, Copias, VistaPrevia…
 ├── lib/
 │   ├── fs.ts                   interfaz de carpeta común; carpeta local (File System Access API)
 │   ├── drive.ts                carpeta de Google Drive (Google Identity Services + Drive API v3)
@@ -201,6 +201,8 @@ src/
 │   ├── backups.ts              copias automáticas (últimas 30)
 │   ├── documentos.ts           docxtemplater + PizZip, nombres de archivo, datos de las plantillas
 │   ├── format.ts               importes, fechas y campaña
+│   ├── control.ts              contrato menor, crédito por aplicación, pendientes, municipios
+│   ├── excel.ts                exportación a .xlsx (escrita con PizZip)
 │   ├── textos.ts               importe en letra, fechas del evento, soportes enumerados
 │   ├── schema.ts               esquema SQLite (versión 2)
 │   ├── municipios.ts           municipios de la provincia (sugerencias)
@@ -217,7 +219,7 @@ Pila: React 18, Vite, Tailwind CSS, TypeScript, [sql.js](https://sql.js.org), [d
 `datos.sqlite` (esquema versión 2) tiene:
 - `patrocinios`: un registro por expediente. La clave es `id`; `num_contrato` se reinicia cada año y puede repetirse. Guarda su propia copia de los datos de la entidad, el estado, las fechas de inicio y fin, el tipo de IVA y los importes en letra.
 - `entidades`: una por CIF (agrupado sin espacios ni guiones, sin modificar cómo está escrito), con los datos de su patrocinio más reciente.
-- `configuracion`: versión del esquema y tipo de IVA por defecto.
+- `configuracion`: versión del esquema, tipo de IVA por defecto, crédito de cada aplicación presupuestaria (`credito:<aplicación>`) y límite del contrato menor (`limite_contrato_menor`, 15.000 € sin IVA si no se indica).
 
 Reglas en la base de datos: importes no negativos, anualidad entre 2000 y 2100, fechas AAAA-MM-DD válidas, fin del evento no anterior al inicio, y fecha de modificación automática. La actualización desde la versión 1 está en `src/lib/db.ts` (`migrar`). El esquema completo está en [`docs/esquema.sql`](docs/esquema.sql).
 
