@@ -186,7 +186,7 @@ export function Usuarios() {
             {origen === 'drive' ? (
               <>
                 <p className="mt-2">Cada usuario entra con su cuenta de Google. Al guardarlo, la carpeta de Drive se comparte con su cuenta: como <strong>lector</strong> si es de consulta y como <strong>editor</strong> si puede modificar. Así nadie de consulta puede cambiar el archivo, ni siquiera desde Drive.</p>
-                <p className="mt-2 text-tinta/60">Si el proyecto de Google Cloud está en modo «Prueba», añade también su correo en <em>Público → Usuarios de prueba</em>, o publica la aplicación.</p>
+                <p className="mt-2 text-tinta/60">La primera vez, Google le avisará de que «Google no ha verificado esta aplicación»: debe pulsar <em>Configuración avanzada → Ir a GESTCON</em>.</p>
               </>
             ) : (
               <>

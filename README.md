@@ -68,7 +68,7 @@ Las siguientes veces basta con pulsar **Continuar con «Patrocinios»** y confir
 
 **A tener en cuenta con Google Drive**
 - La sesión de Google dura una hora. Si caduca mientras trabajas, arriba aparece **Reconectar con Google**: los cambios no se pierden, se guardan al reconectar.
-- Mientras la aplicación esté en modo «Prueba» en Google Cloud, Google puede pedirte que aceptes los permisos de nuevo cada semana. Para evitarlo, en **Público** pulsa **Publicar aplicación** (seguirá saliendo el aviso de aplicación no verificada, que puedes ignorar porque la aplicación es tuya).
+- Mientras la aplicación esté en modo «Prueba» en Google Cloud, Google puede pedirte que aceptes los permisos de nuevo cada semana. Para evitarlo, en **Público** pulsa **Publicar aplicación** (seguirá saliendo el aviso de aplicación no verificada, que puedes ignorar porque la aplicación es tuya). Para publicarla, Google pide antes la página principal y la política de privacidad en **Información de la marca**: usa la dirección de la aplicación y la página `privacidad.html` que se publica con ella.
 - La aplicación pide acceso a tu Drive para poder leer y escribir en la carpeta `Patrocinios`; solo toca esa carpeta.
 - Las copias de seguridad antiguas se mueven a la papelera de Drive, que se vacía sola a los 30 días.
 - Si abres la aplicación en dos ordenadores a la vez, avisará de que «El archivo de datos ha cambiado».
@@ -161,7 +161,7 @@ Patrocinios/
 - **En una carpeta de red**, aparece *Crea el administrador*: nombre, usuario y contraseña. Después se muestra un **código de recuperación**: apúntalo y guárdalo fuera de la carpeta. Sirve para poner una contraseña nueva a un administrador que la olvide (*¿Has olvidado la contraseña?* en la pantalla de entrada).
 
 **Dar de alta.** En *Usuarios* → *Nuevo usuario*: nombre, rol y cómo entra:
-- **Cuenta de Google** (datos en Drive). Al guardar, la aplicación comparte la carpeta con esa cuenta: como *lector* si es de consulta y como *editor* si puede modificar, así que un usuario de consulta no puede cambiar el archivo ni desde Drive. La persona recibe un correo de Google. Si el proyecto de Google Cloud está en modo «Prueba», añade también su correo en **Público → Usuarios de prueba** (o publica la aplicación, Parte 2).
+- **Cuenta de Google** (datos en Drive). Al guardar, la aplicación comparte la carpeta con esa cuenta: como *lector* si es de consulta y como *editor* si puede modificar, así que un usuario de consulta no puede cambiar el archivo ni desde Drive. La persona recibe un correo de Google. La primera vez que entre, Google le mostrará «Google no ha verificado esta aplicación»: debe pulsar **Configuración avanzada → Ir a GESTCON**. Mientras la aplicación no esté verificada por Google, pueden usarla hasta 100 cuentas distintas.
 - **Usuario y contraseña** (datos en una carpeta de red). La contraseña que pones es provisional: la persona la cambia al entrar por primera vez. Las contraseñas se guardan cifradas (PBKDF2), nunca tal cual.
 - Se pueden indicar las dos cosas para la misma persona.
 
