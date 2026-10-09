@@ -87,7 +87,7 @@ export function Entidades() {
 const anioRenovacion = (ultimo: Patrocinio) => Math.max((ultimo.anualidad ?? new Date().getFullYear()) + 1, new Date().getFullYear())
 
 export function FichaEntidad({ id }: { id: number }) {
-  const { entidades, config, crear } = useStore()
+  const { entidades, config, crear, puede } = useStore()
   const aviso = useAviso()
   const historial = useHistorial()
   const [confirmar, setConfirmar] = useState(false)
@@ -160,7 +160,7 @@ export function FichaEntidad({ id }: { id: number }) {
           <h1 className="titulo break-words">{e.nombre}</h1>
           <p className="mt-1.5 text-tinta/65">{ps.length === 0 ? 'Sin patrocinios.' : ps.length === 1 ? '1 patrocinio' : `${ps.length} patrocinios desde ${ps[ps.length - 1].anualidad ?? '—'}`}. CIF {e.cif}</p>
         </div>
-        {ultimo && <button className="btn-primario" onClick={() => setConfirmar(true)}>Renovar para {objetivo}</button>}
+        {ultimo && puede('editar') && <button className="btn-primario" onClick={() => setConfirmar(true)}>Renovar para {objetivo}</button>}
       </div>
 
       <div className="mt-7 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">

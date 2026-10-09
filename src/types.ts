@@ -30,9 +30,28 @@ export interface Patrocinio {
   fecha_firma: string | null
   creado: string
   modificado: string
+  creado_por: string
+  modificado_por: string
 }
 
-export type DatosPatrocinio = Omit<Patrocinio, 'id' | 'creado' | 'modificado' | 'entidad_id'>
+export type DatosPatrocinio = Omit<Patrocinio, 'id' | 'creado' | 'modificado' | 'entidad_id' | 'creado_por' | 'modificado_por'>
+
+// ---------- Usuarios ----------
+export type Rol = 'consulta' | 'edicion' | 'admin'
+
+export interface Usuario {
+  id: number
+  nombre: string
+  email: string | null
+  usuario: string | null
+  clave_hash: string | null
+  clave_sal: string | null
+  cambiar_clave: number
+  rol: Rol
+  activo: number
+  creado: string
+  modificado: string
+}
 
 export interface Entidad {
   id: number
@@ -49,6 +68,8 @@ export interface Entidad {
 export interface InformeMigracion {
   desde: number
   hasta: number
+  /** Versión 3: usuarios y trabajo simultáneo */
+  usuarios?: boolean
   entidades: number
   fechasDeducidas: number
   cambiosTexto: { id: number; campo: string; antes: string; despues: string }[]

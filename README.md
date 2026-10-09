@@ -3,7 +3,7 @@
 Aplicación web para registrar los patrocinios deportivos y generar sus documentos Word (anexos, contrato e informes). Sustituye a la base de datos Access `GESTCON.accdb`.
 
 - **Sin servidor**: todo se ejecuta en el navegador. Los datos viven en un archivo SQLite dentro de una carpeta que la aplicación lee y escribe directamente: una carpeta de **Google Drive** o una carpeta del ordenador o de la red.
-- **Un solo usuario**: no hay bloqueos. Si el archivo cambia fuera de la ventana (por ejemplo, la aplicación abierta en dos pestañas), la aplicación avisa antes de sobrescribirlo.
+- **Varios usuarios a la vez, con roles**: cada persona entra con su cuenta (Google en Drive; usuario y contraseña en una carpeta de red) y tiene un rol: consulta, edición o administración. Los cambios de cada uno se combinan al guardar y la aplicación recoge sola los de los demás cada pocos segundos.
 - **Navegador**: con Google Drive, cualquier navegador moderno. Con una carpeta del ordenador o de red, Google Chrome o Microsoft Edge en un ordenador.
 
 Los datos y las plantillas **no están en este repositorio**: el repositorio solo contiene el código de la aplicación. Con Google Drive, el navegador habla directamente con Google; no hay ningún servidor intermedio.
@@ -95,7 +95,8 @@ Patrocinios/
 - La primera vez conecta con Google Drive (Parte 2) o pulsa **Elegir carpeta** y selecciona la carpeta `Patrocinios` del ordenador (Parte 3).
 - Las siguientes veces pulsa **Continuar con «Patrocinios»** y confirma la cuenta de Google o el permiso de la carpeta.
 - **Cambiar carpeta** (arriba a la derecha) vuelve a la pantalla de conexión.
-- La primera vez que abres la aplicación cada día se crea una copia de seguridad automática.
+- Después hay que identificarse: con Drive, la cuenta de Google; con una carpeta de red, usuario y contraseña (Parte 5).
+- La primera vez que alguien con permiso de edición abre la aplicación cada día se crea una copia de seguridad automática.
 - Si el `datos.sqlite` es de una versión anterior, la aplicación lo actualiza sola (antes guarda una copia en `backups/`) y muestra un resumen de lo que ha cambiado.
 
 **Listado.** Escribe en *Buscar* parte de la entidad, evento, CIF, municipio o nº de contrato. Filtra por anualidad y por estado. En **Más filtros** puedes filtrar además por municipio, aplicación presupuestaria, importe (desde / hasta) y fecha del evento. Encima de la tabla se ve cuántos patrocinios coinciden y su importe total. Pulsa en una fila para abrir su ficha. *Nuevo patrocinio* crea un registro.
@@ -129,7 +130,7 @@ Patrocinios/
 - **Soportes cedidos y propios**: escribe un soporte y pulsa **Intro**. Mientras escribes se proponen los usados en otros patrocinios (la primera propuesta se añade con Intro; las flechas eligen otra). Pulsa un soporte para corregirlo; las flechas lo suben o bajan y la ✕ lo quita. Se guardan como siempre, uno por línea con guion («- Soporte.»).
 - **Soportes enumerados**: se vuelve a escribir solo, con las dos listas separadas por comas, cada vez que añades, quitas u ordenas un soporte. Se puede retocar.
 - **Duplicar** crea una copia del patrocinio sin nº de contrato ni fecha de firma (útil cuando una entidad repite).
-- **Eliminar** pide confirmación y deja antes una copia de seguridad.
+- **Eliminar** (solo administradores) pide confirmación y deja antes una copia de seguridad.
 - Los importes se escriben en formato español (`4.235,00` o `4235,5`). El importe sin IVA y el IVA se calculan con el tipo de IVA del patrocinio (21 % por defecto).
 - Bajo cada documento se avisa de los datos que faltan para generarlo (por ejemplo, la fecha de firma); se puede generar igualmente y esos huecos quedan en blanco.
 
@@ -143,15 +144,34 @@ Patrocinios/
 
 > La aplicación no puede convertir a PDF por sí sola y guardarlo en la carpeta sin intervención (los navegadores no lo permiten). El Word se guarda automáticamente; el PDF se obtiene en un paso desde la vista previa.
 
-**Copias de seguridad.** En *Copias de seguridad* se ven las copias de la carpeta `backups/` (se conservan las automáticas de los últimos 30 días y las 30 últimas del resto: manuales, antes de eliminar, restaurar o actualizar). Se puede **Crear copia ahora** y **Restaurar** cualquiera; antes de restaurar se guarda una copia de los datos actuales, así que se puede deshacer.
+**Copias de seguridad** (solo administradores). En *Copias de seguridad* se ven las copias de la carpeta `backups/` (se conservan las automáticas de los últimos 30 días y las 30 últimas del resto: manuales, antes de eliminar, restaurar o actualizar). Se puede **Crear copia ahora** y **Restaurar** cualquiera; antes de restaurar se guarda una copia de los datos actuales, así que se puede deshacer.
 
-**Si aparece «El archivo de datos ha cambiado».** Significa que `datos.sqlite` se modificó fuera de esta ventana (otra pestaña, otro ordenador o una copia manual).
-- *Recargar los datos del archivo*: descarta tu último cambio y muestra lo que hay en el archivo.
-- *Guardar mis cambios y sobrescribir*: conserva lo que ves aquí y pierde lo hecho en la otra ventana.
+**Trabajar varios a la vez.** Cada cambio se guarda solo con los campos que has tocado. Antes de escribir, la aplicación relee `datos.sqlite` y aplica encima tus cambios, así que si otra persona ha modificado otros datos (incluso del mismo patrocinio) se conservan los de los dos. Cada 15 segundos (y al volver a la ventana) recoge lo que han guardado los demás; si alguien cambia el patrocinio que tienes abierto, la ficha se actualiza y te avisa. Si los dos cambiáis el mismo campo a la vez, queda el último que se guarda. Bajo el nombre de cada patrocinio se ve quién lo modificó por última vez.
 
-Para evitarlo, mantén la aplicación abierta en una sola pestaña.
+## Parte 5 · Usuarios y roles
 
-## Parte 5 · Modificar las plantillas
+| Rol | Puede |
+|---|---|
+| **Consulta** | Ver patrocinios, pendientes, entidades y resumen; ver los documentos ya generados; exportar a Excel. No puede cambiar nada. |
+| **Edición** | Además, crear, modificar, duplicar y renovar patrocinios, y generar documentos. |
+| **Administración** | Además, eliminar patrocinios, fijar créditos y el límite del contrato menor, gestionar usuarios y copias de seguridad. |
+
+**La primera vez.** Al abrir la carpeta con esta versión, la aplicación actualiza `datos.sqlite` (con copia previa) y pide un administrador:
+- **En Google Drive**, la cuenta que la abre (la propietaria de la carpeta) queda como administradora automáticamente.
+- **En una carpeta de red**, aparece *Crea el administrador*: nombre, usuario y contraseña. Después se muestra un **código de recuperación**: apúntalo y guárdalo fuera de la carpeta. Sirve para poner una contraseña nueva a un administrador que la olvide (*¿Has olvidado la contraseña?* en la pantalla de entrada).
+
+**Dar de alta.** En *Usuarios* → *Nuevo usuario*: nombre, rol y cómo entra:
+- **Cuenta de Google** (datos en Drive). Al guardar, la aplicación comparte la carpeta con esa cuenta: como *lector* si es de consulta y como *editor* si puede modificar, así que un usuario de consulta no puede cambiar el archivo ni desde Drive. La persona recibe un correo de Google. Si el proyecto de Google Cloud está en modo «Prueba», añade también su correo en **Público → Usuarios de prueba** (o publica la aplicación, Parte 2).
+- **Usuario y contraseña** (datos en una carpeta de red). La contraseña que pones es provisional: la persona la cambia al entrar por primera vez. Las contraseñas se guardan cifradas (PBKDF2), nunca tal cual.
+- Se pueden indicar las dos cosas para la misma persona.
+
+**Cambiar o quitar el acceso.** Pulsa el usuario en la lista: cambia su rol, desmárcale *Activo* o elimínalo. En Drive, el permiso de la carpeta se ajusta solo. Los cambios llegan a quien esté trabajando en unos segundos, sin que tenga que recargar. Siempre queda al menos un administrador activo, y nadie puede desactivarse a sí mismo.
+
+**Cerrar sesión / cambiar contraseña.** Abajo en el menú lateral (en móvil, arriba).
+
+> **Seguridad sin servidor.** Con Google Drive, la protección es real: los permisos los aplica Google. En una carpeta de red, el control de acceso lo aplica la aplicación; para que un usuario de consulta tampoco pueda modificar `datos.sqlite` por fuera de ella, dale permiso de **solo lectura** sobre la carpeta en la unidad de red.
+
+## Parte 6 · Modificar las plantillas
 
 Las plantillas son documentos Word normales con etiquetas `{campo}` donde deben aparecer los datos. Se editan con Word en la carpeta `plantillas/` y los cambios se aplican la próxima vez que se genere un documento.
 
@@ -161,7 +181,7 @@ La lista de etiquetas, qué contiene cada una y cuáles usa cada plantilla está
 - Una etiqueta se puede repetir todas las veces que haga falta.
 - Una etiqueta que no existe sale en blanco.
 
-## Parte 6 · Problemas habituales
+## Parte 7 · Problemas habituales
 
 | Síntoma | Qué hacer |
 |---|---|
@@ -174,6 +194,9 @@ La lista de etiquetas, qué contiene cada una y cuáles usa cada plantilla está
 | «Falta la plantilla … en la carpeta plantillas» | Copia ese archivo a `plantillas/` con el nombre exacto. |
 | El documento sale con huecos | Rellena en la ficha los datos que indica el aviso «Sin rellenar». |
 | «El archivo no es una base de datos de GESTCON» | `datos.sqlite` no es el archivo correcto o está dañado: restaura una copia de `backups/` (cámbiale el nombre a `datos.sqlite`). |
+| «Sin acceso» al entrar con Google | Esa cuenta no está dada de alta o está desactivada: un administrador debe darla de alta en *Usuarios*. |
+| No encuentro la carpeta con otra cuenta de Google | La carpeta no está compartida con esa cuenta: dala de alta en *Usuarios* (se comparte sola) o compártela en Drive. |
+| Un administrador olvidó su contraseña (carpeta de red) | *¿Has olvidado la contraseña?* con el código de recuperación. Si se perdió, otro administrador puede asignarle una nueva en *Usuarios*. |
 | Un error al generar un documento | Comprueba que la plantilla no tiene llaves `{ }` sueltas ni etiquetas partidas por cambios de formato. |
 
 ## Desarrollo
@@ -197,7 +220,9 @@ src/
 │   ├── fs.ts                   interfaz de carpeta común; carpeta local (File System Access API)
 │   ├── drive.ts                carpeta de Google Drive (Google Identity Services + Drive API v3)
 │   ├── db.ts                   SQLite con sql.js
-│   ├── store.tsx               estado, guardado automático y control de conflictos (lastModified)
+│   ├── store.tsx               estado, identidad, guardado y sincronización entre usuarios
+│   ├── operaciones.ts          cambios como operaciones: combinar y comprobar que no se pierden
+│   ├── acceso.ts               roles, permisos y contraseñas (PBKDF2)
 │   ├── backups.ts              copias automáticas (últimas 30)
 │   ├── documentos.ts           docxtemplater + PizZip, nombres de archivo, datos de las plantillas
 │   ├── format.ts               importes, fechas y campaña
@@ -216,12 +241,15 @@ Pila: React 18, Vite, Tailwind CSS, TypeScript, [sql.js](https://sql.js.org), [d
 
 ### Base de datos
 
-`datos.sqlite` (esquema versión 2) tiene:
+`datos.sqlite` (esquema versión 3) tiene:
 - `patrocinios`: un registro por expediente. La clave es `id`; `num_contrato` se reinicia cada año y puede repetirse. Guarda su propia copia de los datos de la entidad, el estado, las fechas de inicio y fin, el tipo de IVA y los importes en letra.
 - `entidades`: una por CIF (agrupado sin espacios ni guiones, sin modificar cómo está escrito), con los datos de su patrocinio más reciente.
-- `configuracion`: versión del esquema, tipo de IVA por defecto, crédito de cada aplicación presupuestaria (`credito:<aplicación>`) y límite del contrato menor (`limite_contrato_menor`, 15.000 € sin IVA si no se indica).
+- `usuarios`: nombre, cuenta de Google y/o usuario con la contraseña cifrada (PBKDF2-SHA256 con sal), rol y si está activo.
+- `operaciones`: el identificador de cada cambio guardado en los últimos 30 días. Al trabajar varios a la vez, sirve para detectar un cambio que se haya perdido (dos personas escribiendo en el mismo instante) y volver a aplicarlo.
+- `patrocinios.creado_por` y `modificado_por`: quién creó y quién modificó por última vez cada patrocinio.
+- `configuracion`: versión del esquema, tipo de IVA por defecto, crédito de cada aplicación presupuestaria (`credito:<aplicación>`), límite del contrato menor (`limite_contrato_menor`, 15.000 € sin IVA si no se indica) y el código de recuperación cifrado (`recuperacion`).
 
-Reglas en la base de datos: importes no negativos, anualidad entre 2000 y 2100, fechas AAAA-MM-DD válidas, fin del evento no anterior al inicio, y fecha de modificación automática. La actualización desde la versión 1 está en `src/lib/db.ts` (`migrar`). El esquema completo está en [`docs/esquema.sql`](docs/esquema.sql).
+Reglas en la base de datos: importes no negativos, anualidad entre 2000 y 2100, fechas AAAA-MM-DD válidas, fin del evento no anterior al inicio, y fecha de modificación automática. Las actualizaciones desde las versiones 1 y 2 están en `src/lib/db.ts` (`migrar`). El esquema completo está en [`docs/esquema.sql`](docs/esquema.sql).
 
 ## Origen
 

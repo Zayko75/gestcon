@@ -1,9 +1,9 @@
 import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js'
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
-import { DISPARADORES_SQL, SCHEMA_SQL, VERSION_ESQUEMA, tablasSQL } from './schema'
+import { DISPARADORES_SQL, SCHEMA_SQL, USUARIOS_SQL, VERSION_ESQUEMA, tablasSQL } from './schema'
 import { claveCif, fechasDeTexto, letraCoherente } from './textos'
 import { importeSinIva } from './format'
-import type { DatosPatrocinio, Entidad, InformeMigracion, Patrocinio } from '../types'
+import type { DatosPatrocinio, Entidad, InformeMigracion, Patrocinio, Usuario } from '../types'
 
 let sqlPromise: Promise<SqlJsStatic> | null = null
 export function sql(): Promise<SqlJsStatic> {
@@ -103,19 +103,21 @@ function guardarEntidad(db: Database, d: DatosPatrocinio, actualizarDatos: boole
   return existe.id
 }
 
-export function insertar(db: Database, d: DatosPatrocinio): number {
+/** Crea un patrocinio. Con «id» se usa ese identificador (al combinar cambios de varios usuarios). */
+export function insertar(db: Database, d: DatosPatrocinio, autor = '', id?: number): number {
   try {
     const entidadId = guardarEntidad(db, d, true)
-    const cols = [...CAMPOS, 'entidad_id'].join(',')
-    const marcas = [...CAMPOS, 'entidad_id'].map(() => '?').join(',')
-    db.run(`INSERT INTO patrocinios (${cols}) VALUES (${marcas})`, [...CAMPOS.map((c) => d[c]), entidadId] as any[])
+    const extra = ['entidad_id', 'creado_por', 'modificado_por', ...(id !== undefined ? ['id'] : [])]
+    const cols = [...CAMPOS, ...extra].join(',')
+    const marcas = [...CAMPOS, ...extra].map(() => '?').join(',')
+    db.run(`INSERT INTO patrocinios (${cols}) VALUES (${marcas})`, [...CAMPOS.map((c) => d[c]), entidadId, autor, autor, ...(id !== undefined ? [id] : [])] as any[])
     return Number(db.exec('SELECT last_insert_rowid()')[0].values[0][0])
   } catch (e) {
     throw mensajeRegla(e)
   }
 }
 
-export function actualizar(db: Database, id: number, d: DatosPatrocinio): void {
+export function actualizar(db: Database, id: number, d: DatosPatrocinio, autor = ''): void {
   try {
     // Los datos de la entidad solo se actualizan desde su patrocinio más reciente,
     // para que corregir un expediente antiguo no deshaga datos más nuevos.
@@ -125,7 +127,7 @@ export function actualizar(db: Database, id: number, d: DatosPatrocinio): void {
       : null
     const entidadId = guardarEntidad(db, d, ultimo === null || ultimo === undefined || id >= ultimo)
     const set = CAMPOS.map((c) => `${c}=?`).join(',')
-    db.run(`UPDATE patrocinios SET ${set}, entidad_id=?, modificado=datetime('now') WHERE id=?`, [...CAMPOS.map((c) => d[c]), entidadId, id] as any[])
+    db.run(`UPDATE patrocinios SET ${set}, entidad_id=?, modificado=datetime('now'), modificado_por=? WHERE id=?`, [...CAMPOS.map((c) => d[c]), entidadId, autor, id] as any[])
   } catch (e) {
     throw mensajeRegla(e)
   }
@@ -159,6 +161,60 @@ export function escribirConfig(db: Database, clave: string, valor: string | null
   else db.run('INSERT INTO configuracion(clave,valor) VALUES (?,?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor', [clave, valor])
 }
 
+/** Un patrocinio por id, o null si no existe */
+export function patrocinio(db: Database, id: number): Patrocinio | null {
+  return filas<Patrocinio>(db, 'SELECT * FROM patrocinios WHERE id=?', [id])[0] ?? null
+}
+
+// ---------- Usuarios ----------
+export function listarUsuarios(db: Database): Usuario[] {
+  try {
+    return filas<Usuario>(db, 'SELECT * FROM usuarios ORDER BY activo DESC, nombre COLLATE NOCASE')
+  } catch {
+    return [] // archivo anterior a la versión 3
+  }
+}
+
+export type DatosUsuario = Omit<Usuario, 'id' | 'creado' | 'modificado'>
+
+/** Crea (sin id) o actualiza un usuario. Devuelve su id. */
+export function guardarUsuario(db: Database, u: DatosUsuario, id?: number): number {
+  const cols = ['nombre', 'email', 'usuario', 'clave_hash', 'clave_sal', 'cambiar_clave', 'rol', 'activo'] as const
+  const vals = cols.map((c) => u[c]) as (string | number | null)[]
+  try {
+    if (id === undefined || !filas(db, 'SELECT 1 FROM usuarios WHERE id=?', [id]).length) {
+      db.run(`INSERT INTO usuarios (${[...cols, ...(id !== undefined ? ['id'] : [])].join(',')}) VALUES (${[...cols, ...(id !== undefined ? ['id'] : [])].map(() => '?').join(',')})`,
+        [...vals, ...(id !== undefined ? [id] : [])])
+      return id ?? Number(db.exec('SELECT last_insert_rowid()')[0].values[0][0])
+    }
+    db.run(`UPDATE usuarios SET ${cols.map((c) => `${c}=?`).join(',')}, modificado=datetime('now') WHERE id=?`, [...vals, id])
+    return id
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e)
+    if (/UNIQUE.*email/i.test(m)) throw new Error('Ya hay otro usuario con esa cuenta de Google.')
+    if (/UNIQUE.*usuario/i.test(m)) throw new Error('Ya hay otro usuario con ese nombre de usuario.')
+    throw e
+  }
+}
+
+export function borrarUsuario(db: Database, id: number): void {
+  db.run('DELETE FROM usuarios WHERE id=?', [id])
+}
+
+// ---------- Registro de operaciones ----------
+export function operacionAplicada(db: Database, id: string): boolean {
+  return filas(db, 'SELECT 1 FROM operaciones WHERE id=?', [id]).length > 0
+}
+
+export function registrarOperacion(db: Database, id: string, usuario: string, tipo: string, registro: number | null): void {
+  db.run('INSERT OR IGNORE INTO operaciones (id, usuario, tipo, registro) VALUES (?,?,?,?)', [id, usuario, tipo, registro])
+}
+
+/** Borra del registro las operaciones de hace más de 30 días */
+export function podarOperaciones(db: Database): void {
+  db.run("DELETE FROM operaciones WHERE fecha < datetime('now', '-30 days')")
+}
+
 // ---------- Migraciones ----------
 
 /** Actualiza el archivo a la última versión del esquema. Devuelve null si ya estaba al día. */
@@ -170,6 +226,7 @@ export function migrar(db: Database): InformeMigracion | null {
   db.exec('BEGIN')
   try {
     if (desde < 2) migrarA2(db, informe)
+    if (desde < 3) migrarA3(db, informe)
     db.exec(`INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','${VERSION_ESQUEMA}')
              ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor`)
     db.exec(`PRAGMA user_version = ${VERSION_ESQUEMA}`)
@@ -182,6 +239,15 @@ export function migrar(db: Database): InformeMigracion | null {
   }
   db.exec('VACUUM') // compacta el archivo
   return informe
+}
+
+/** Versión 2 → 3: usuarios, registro de operaciones y autor de cada cambio */
+function migrarA3(db: Database, informe: InformeMigracion): void {
+  const columnas = filas<{ name: string }>(db, 'PRAGMA table_info(patrocinios)').map((c) => c.name)
+  if (!columnas.includes('creado_por')) db.exec("ALTER TABLE patrocinios ADD COLUMN creado_por TEXT NOT NULL DEFAULT ''")
+  if (!columnas.includes('modificado_por')) db.exec("ALTER TABLE patrocinios ADD COLUMN modificado_por TEXT NOT NULL DEFAULT ''")
+  db.exec(USUARIOS_SQL)
+  informe.usuarios = true
 }
 
 /** Versión 1 (migración desde Access) → 2 */

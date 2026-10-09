@@ -14,7 +14,7 @@ const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'O
 const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
 /** Importe editable que se guarda al salir del campo o al pulsar Intro */
-function CampoImporte({ id, etiqueta, valor, onGuardar, placeholder }: { id: string; etiqueta: string; valor: number | null; onGuardar: (v: number | null) => Promise<void>; placeholder?: string }) {
+function CampoImporte({ id, etiqueta, valor, onGuardar, placeholder, disabled = false }: { id: string; etiqueta: string; valor: number | null; onGuardar: (v: number | null) => Promise<void>; placeholder?: string; disabled?: boolean }) {
   const [texto, setTexto] = useState(valor === null ? '' : numeroES(valor))
   const [error, setError] = useState('')
   const guardar = async () => {
@@ -28,7 +28,7 @@ function CampoImporte({ id, etiqueta, valor, onGuardar, placeholder }: { id: str
   return (
     <div>
       <label htmlFor={id} className="text-[0.8rem] font-medium text-tinta/60">{etiqueta}</label>
-      <input id={id} className="campo mt-1 !py-1.5 text-right" inputMode="decimal" value={texto} placeholder={placeholder}
+      <input id={id} className="campo mt-1 !py-1.5 text-right disabled:bg-papel disabled:text-tinta/70" inputMode="decimal" value={texto} placeholder={placeholder} disabled={disabled}
         onChange={(e) => setTexto(e.target.value)} onBlur={() => void guardar()}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void guardar() } }} aria-invalid={!!error} />
       {error && <p className="mt-1 text-[0.78rem] font-medium text-error">{error}</p>}
@@ -36,7 +36,7 @@ function CampoImporte({ id, etiqueta, valor, onGuardar, placeholder }: { id: str
   )
 }
 
-function Presupuesto({ u, onCredito }: { u: UsoAplicacion; onCredito: (v: number | null) => Promise<void> }) {
+function Presupuesto({ u, onCredito, editable }: { u: UsoAplicacion; onCredito: (v: number | null) => Promise<void>; editable: boolean }) {
   const escala = Math.max(u.credito ?? 0, u.total) || 1
   const pct = (n: number) => `${(n / escala) * 100}%`
   const quedan = u.credito !== null ? Math.round((u.credito - u.total) * 100) / 100 : null
@@ -68,13 +68,14 @@ function Presupuesto({ u, onCredito }: { u: UsoAplicacion; onCredito: (v: number
           {u.credito === null && <>. Indica el crédito para ver lo que queda.</>}
         </p>
       </div>
-      <CampoImporte key={u.credito ?? 'x'} id={`credito-${u.aplicacion}`} etiqueta="Crédito (€)" valor={u.credito} onGuardar={onCredito} placeholder="Sin indicar" />
+      <CampoImporte key={u.credito ?? 'x'} id={`credito-${u.aplicacion}`} etiqueta="Crédito (€)" valor={u.credito} onGuardar={onCredito} placeholder="Sin indicar" disabled={!editable} />
     </li>
   )
 }
 
 export function Resumen() {
-  const { registros, config, guardarConfig } = useStore()
+  const { registros, config, guardarConfig, puede } = useStore()
+  const admin = puede('administrar')
   const aviso = useAviso()
   const anioActual = new Date().getFullYear()
   const anios = useMemo(() => {
@@ -172,15 +173,15 @@ export function Resumen() {
         </div>
         {usos.length === 0
           ? <p className="px-5 py-8 text-tinta/65">Ningún patrocinio de {anio} tiene aplicación presupuestaria todavía.</p>
-          : <ul className="divide-y divide-linea/70">{usos.map((u) => <Presupuesto key={u.aplicacion} u={u} onCredito={guardarCredito(u.aplicacion)} />)}</ul>}
-        <div className="flex flex-wrap items-end gap-3 border-t border-linea bg-papel/60 px-5 py-4">
+          : <ul className="divide-y divide-linea/70">{usos.map((u) => <Presupuesto key={u.aplicacion} u={u} onCredito={guardarCredito(u.aplicacion)} editable={admin} />)}</ul>}
+        {admin && <div className="flex flex-wrap items-end gap-3 border-t border-linea bg-papel/60 px-5 py-4">
           <div className="w-60">
             <label htmlFor="nueva-aplic" className="text-[0.8rem] font-medium text-tinta/60">Indicar el crédito de otra aplicación</label>
             <EntradaMascara id="nueva-aplic" className="campo mt-1 !py-1.5" valor={nuevaAplic} onCambio={setNuevaAplic} formatear={formatoAplicacion} inputMode="numeric" placeholder={`${anio + 1}/1301/3411/22608`}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void anadirAplicacion() } }} />
           </div>
           <button type="button" className="btn-sec btn-sm" onClick={() => void anadirAplicacion()}>Añadir</button>
-        </div>
+        </div>}
       </section>
 
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
@@ -247,7 +248,7 @@ export function Resumen() {
             La ficha avisa si un patrocinio supera este importe sin IVA, o si la entidad lo supera sumando todos los suyos del año.
           </p>
           <div className="mt-3 w-48">
-            <CampoImporte key={limite} id="limite-menor" etiqueta="Límite sin IVA (€)" valor={limite}
+            <CampoImporte key={limite} id="limite-menor" etiqueta="Límite sin IVA (€)" valor={limite} disabled={!admin}
               onGuardar={async (v) => { await guardarConfig(CLAVE_LIMITE, v === null || v === LIMITE_MENOR_DEFECTO ? null : String(v)); aviso(`Límite del contrato menor: ${eur(v ?? LIMITE_MENOR_DEFECTO)} sin IVA.`) }} />
           </div>
           <h3 className="mt-5 text-[0.95rem] font-semibold">Entidades que lo superan sumando sus patrocinios de {anio}</h3>

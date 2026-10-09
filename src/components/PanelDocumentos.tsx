@@ -18,7 +18,8 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
   listoParaGenerar: boolean
   antesDeGenerar: () => Promise<boolean>
 }) {
-  const { dirRaiz } = useStore()
+  const { dirRaiz, puede } = useStore()
+  const genera = puede('editar')
   const aviso = useAviso()
   const [estados, setEstados] = useState<Record<string, Estado>>({})
   const [trabajando, setTrabajando] = useState<string | null>(null)
@@ -27,17 +28,19 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
   // Lee qué etiquetas tiene cada plantilla y qué documentos ya existen
   const cargarEstados = useCallback(async () => {
     if (!dirRaiz || !registro) return
-    const dirPl = await fs.subcarpeta(dirRaiz, 'plantillas')
-    const dirDoc = await fs.subcarpeta(dirRaiz, 'documentos')
+    // Solo lectura: las carpetas se crean al generar el primer documento, no al mirar
+    const dirPl = await fs.subcarpeta(dirRaiz, 'plantillas', false).catch(() => null)
+    const dirDoc = await fs.subcarpeta(dirRaiz, 'documentos', false).catch(() => null)
     const nuevo: Record<string, Estado> = {}
     for (const def of DOCUMENTOS) {
       let etiquetas: string[] | null = null
       try {
-        etiquetas = etiquetasDePlantilla((await fs.leerBytes(dirPl, def.plantilla)).datos)
+        if (dirPl) etiquetas = etiquetasDePlantilla((await fs.leerBytes(dirPl, def.plantilla)).datos)
       } catch { /* falta la plantilla */ }
       let existe: Date | null = null
       let archivo: string | null = null
       for (const nombre of [nombreDocumento(registro, def), nombreDocumentoAntiguo(registro, def)]) {
+        if (!dirDoc) break
         try {
           existe = new Date(await fs.modificadoDe(dirDoc, nombre))
           archivo = nombre
@@ -86,7 +89,7 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
     if (!dirRaiz || !registro) return
     const nombre = estados[def.id]?.archivo ?? nombreDocumento(registro, def)
     try {
-      const { datos } = await fs.leerBytes(await fs.subcarpeta(dirRaiz, 'documentos'), nombre)
+      const { datos } = await fs.leerBytes(await fs.subcarpeta(dirRaiz, 'documentos', false), nombre)
       setVista({ nombre, bytes: datos })
     } catch {
       aviso('No se encuentra el documento en la carpeta «documentos».', 'error')
@@ -111,11 +114,14 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
           <h2 id="t-docs" className="font-display text-[1.4rem] font-semibold leading-tight">Documentos</h2>
           <p className="mt-0.5 text-[0.84rem] text-tinta/55">Se guardan en la carpeta «documentos».</p>
         </div>
-        <button className="btn-sec btn-sm shrink-0" disabled={!listoParaGenerar || trabajando !== null} onClick={generarTodos}>
-          Generar todos
-        </button>
+        {genera && (
+          <button className="btn-sec btn-sm shrink-0" disabled={!listoParaGenerar || trabajando !== null} onClick={generarTodos}>
+            Generar todos
+          </button>
+        )}
       </div>
-      {!listoParaGenerar && (
+      {!genera && <p className="mx-5 mb-3 text-[0.85rem] text-tinta/60">Puedes ver los documentos ya generados. Para generarlos hace falta un usuario de edición.</p>}
+      {genera && !listoParaGenerar && (
         <p className="mx-5 mb-3 rounded-lg bg-aviso/[.08] px-3 py-2 text-[0.85rem] text-aviso">
           {registro ? 'Corrige los datos señalados para poder generar documentos.' : 'Crea el patrocinio para poder generar sus documentos.'}
         </p>
@@ -140,7 +146,7 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
                     <div className="font-semibold leading-snug">{def.etiqueta}</div>
                     <div className="text-[0.84rem] leading-snug text-tinta/55">{def.descripcion}</div>
                   </div>
-                  {!est?.existe && (
+                  {!est?.existe && genera && (
                     <button className="btn-primario btn-sm shrink-0"
                       disabled={!listoParaGenerar || trabajando !== null || falta}
                       onClick={() => generar(def)}>
@@ -151,15 +157,18 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
                 {falta && (
                   <p className="mt-1.5 text-[0.82rem] font-medium text-error">Falta la plantilla «{def.plantilla}» en la carpeta plantillas.</p>
                 )}
-                {faltan.length > 0 && (
+                {!est?.existe && !genera && !falta && <p className="mt-1 text-[0.82rem] text-tinta/50">Aún no se ha generado.</p>}
+                {genera && faltan.length > 0 && (
                   <p className="mt-1.5 text-[0.82rem] text-aviso">Sin rellenar: {faltan.join(', ')}.</p>
                 )}
                 {est?.existe && (
                   <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1.5">
                     <button className="btn-sec btn-sm" onClick={() => verExistente(def)} title="Ver el documento guardado e imprimirlo o guardarlo como PDF">Ver / PDF</button>
-                    <button className="btn-texto btn-sm" disabled={!listoParaGenerar || trabajando !== null} onClick={() => generar(def)}>
-                      {ocupado ? 'Generando…' : 'Volver a generar'}
-                    </button>
+                    {genera && (
+                      <button className="btn-texto btn-sm" disabled={!listoParaGenerar || trabajando !== null} onClick={() => generar(def)}>
+                        {ocupado ? 'Generando…' : 'Volver a generar'}
+                      </button>
+                    )}
                     <span className="basis-full text-[0.8rem] text-tinta/50">Generado el {fechaHoraES(est.existe)}</span>
                   </div>
                 )}

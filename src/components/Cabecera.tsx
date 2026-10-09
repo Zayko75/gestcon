@@ -1,8 +1,9 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { textoRol } from '../lib/acceso'
 import { pendientes } from '../lib/control'
 import { horaCorta } from '../lib/format'
 import { useStore } from '../lib/store'
-import { useAviso } from './ui'
+import { Dialogo, useAviso } from './ui'
 
 /** Marca de la aplicación: un dorsal con las iniciales */
 export function Marca({ claro = false }: { claro?: boolean }) {
@@ -34,12 +35,16 @@ const IconoEntidades = () => (
 const IconoResumen = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
 )
+const IconoUsuarios = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.7.8 2.7 2.6 3 5.2" /></svg>
+)
 const IconoCopias = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg>
 )
 
 export function Cabecera({ ruta }: { ruta: string }) {
-  const { nombreCarpeta, guardado, cambiarCarpeta, origen, sesionCaducada, reconectar, registros } = useStore()
+  const { nombreCarpeta, guardado, cambiarCarpeta, origen, sesionCaducada, reconectar, registros, usuario, puede, salir } = useStore()
+  const [cambiandoClave, setCambiandoClave] = useState(false)
   // Lo urgente: firmas a menos de 30 días del evento y eventos celebrados sin tramitar
   const urgentes = useMemo(() => { const p = pendientes(registros); return p.firmaUrgente.length + p.porJustificar.length }, [registros])
   const aviso = useAviso()
@@ -71,7 +76,8 @@ export function Cabecera({ ruta }: { ruta: string }) {
           {nav('#/pendientes', <>Pendientes{urgentes > 0 && <span className="ml-auto rounded-full bg-[#ffc266] px-1.5 py-px text-[0.75rem] font-bold text-noche" aria-label={`${urgentes} urgentes`}>{urgentes}</span>}</>, <IconoReloj />, ruta === '/pendientes')}
           {nav('#/entidades', 'Entidades', <IconoEntidades />, ruta.startsWith('/entidad'))}
           {nav('#/resumen', 'Resumen', <IconoResumen />, ruta === '/resumen')}
-          {nav('#/copias', <><span className="lg:hidden">Copias</span><span className="max-lg:hidden">Copias de seguridad</span></>, <IconoCopias />, ruta.startsWith('/copias'))}
+          {puede('administrar') && nav('#/usuarios', 'Usuarios', <IconoUsuarios />, ruta === '/usuarios')}
+          {puede('administrar') && nav('#/copias', <><span className="lg:hidden">Copias</span><span className="max-lg:hidden">Copias de seguridad</span></>, <IconoCopias />, ruta.startsWith('/copias'))}
           <button onClick={cambiarCarpeta} className="ml-auto self-center whitespace-nowrap rounded-md px-2 py-1 text-[0.82rem] text-white/65 underline decoration-white/30 underline-offset-4 lg:hidden">Cambiar carpeta</button>
         </nav>
         <div className="ml-auto text-[0.82rem] lg:hidden">{estado}</div>
@@ -85,6 +91,17 @@ export function Cabecera({ ruta }: { ruta: string }) {
           </button>
         )}
         {estado}
+        {usuario && (
+          <div>
+            <div className="text-white/50">Sesión iniciada</div>
+            <div className="mt-0.5 truncate font-medium text-white" title={usuario.email ?? usuario.usuario ?? ''}>{usuario.nombre}</div>
+            <div className="text-white/50">{textoRol(usuario.rol)}</div>
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+              {origen === 'local' && usuario.usuario && <button onClick={() => setCambiandoClave(true)} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cambiar contraseña</button>}
+              <button onClick={salir} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cerrar sesión</button>
+            </div>
+          </div>
+        )}
         <div>
           <div className="text-white/50">{origen === 'drive' ? 'Carpeta en Google Drive' : 'Carpeta de datos'}</div>
           <div className="mt-0.5 truncate font-medium text-white" title={nombreCarpeta}>
@@ -94,6 +111,14 @@ export function Cabecera({ ruta }: { ruta: string }) {
         <button onClick={cambiarCarpeta} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cambiar carpeta</button>
       </div>
 
+      {usuario && (
+        <div className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-1.5 text-[0.8rem] text-white/70 lg:hidden">
+          <span className="truncate">{usuario.nombre} ({textoRol(usuario.rol).toLowerCase()})</span>
+          <button onClick={salir} className="shrink-0 underline decoration-white/30 underline-offset-4">Cerrar sesión</button>
+        </div>
+      )}
+      {cambiandoClave && <DialogoClave onCerrar={() => setCambiandoClave(false)} />}
+
       {sesionCaducada && (
         <div className="flex items-center justify-between gap-3 bg-[#3a2a00] px-4 py-2 text-[0.86rem] lg:hidden">
           <span>La sesión de Google ha caducado.</span>
@@ -102,5 +127,36 @@ export function Cabecera({ ruta }: { ruta: string }) {
         </div>
       )}
     </header>
+  )
+}
+
+function DialogoClave({ onCerrar }: { onCerrar: () => void }) {
+  const { cambiarMiClave } = useStore()
+  const aviso = useAviso()
+  const [actual, setActual] = useState('')
+  const [nueva, setNueva] = useState('')
+  const [repetir, setRepetir] = useState('')
+  const [error, setError] = useState('')
+  const guardar = async (e?: FormEvent) => {
+    e?.preventDefault()
+    setError('')
+    try {
+      if (nueva !== repetir) throw new Error('Las dos contraseñas nuevas no coinciden.')
+      await cambiarMiClave(actual, nueva)
+      aviso('Contraseña cambiada.')
+      onCerrar()
+    } catch (x) { setError(x instanceof Error ? x.message : String(x)) }
+  }
+  return (
+    <Dialogo titulo="Cambiar contraseña" onCerrar={onCerrar}
+      acciones={<><button className="btn-sec" onClick={onCerrar}>Cancelar</button><button className="btn-primario" onClick={() => void guardar()}>Cambiar</button></>}>
+      <form className="space-y-3 text-tinta" onSubmit={guardar}>
+        {error && <p role="alert" className="rounded-lg border border-error/30 bg-error/[.06] px-3 py-2 text-[0.9rem] text-error">{error}</p>}
+        <div><label htmlFor="d-actual" className="etiqueta">Contraseña actual</label><input id="d-actual" type="password" className="campo" value={actual} onChange={(e) => setActual(e.target.value)} autoComplete="current-password" autoFocus /></div>
+        <div><label htmlFor="d-nueva" className="etiqueta">Contraseña nueva</label><input id="d-nueva" type="password" className="campo" value={nueva} onChange={(e) => setNueva(e.target.value)} autoComplete="new-password" /></div>
+        <div><label htmlFor="d-repetir" className="etiqueta">Repite la contraseña nueva</label><input id="d-repetir" type="password" className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value)} autoComplete="new-password" /></div>
+        <button type="submit" className="sr-only">Cambiar</button>
+      </form>
+    </Dialogo>
   )
 }

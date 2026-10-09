@@ -52,7 +52,7 @@ const SIN_FILTROS: Filtros = { municipio: '', aplicacion: '', importeDesde: '', 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 export function Listado() {
-  const { registros } = useStore()
+  const { registros, puede } = useStore()
   const aviso = useAviso()
   const [inicial] = useState(filtroInicial)
   const [q, setQ] = useState('')
@@ -139,10 +139,10 @@ export function Listado() {
             {registros.length === 0 ? 'Aún no hay ningún patrocinio.' : <>{registros.length} patrocinios, {pendientes === 0 ? 'todos tramitados' : <><strong className="font-semibold text-aviso">{pendientes} pendientes</strong> de tramitar</>}.</>}
           </p>
         </div>
-        <a href="#/nuevo" className="btn-primario">
+        {puede('editar') && <a href="#/nuevo" className="btn-primario">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           Nuevo patrocinio
-        </a>
+        </a>}
       </div>
 
       <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -224,7 +224,7 @@ export function Listado() {
               <>
                 <p className="font-display text-2xl font-semibold">Empieza por el primer patrocinio</p>
                 <p className="mt-2 text-tinta/65">Con sus datos podrás generar los anexos, el contrato y los informes.</p>
-                <a className="btn-primario mt-5" href="#/nuevo">Nuevo patrocinio</a>
+                {puede('editar') && <a className="btn-primario mt-5" href="#/nuevo">Nuevo patrocinio</a>}
               </>
             ) : (
               <>

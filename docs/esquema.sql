@@ -1,5 +1,5 @@
--- GESTCON · esquema SQLite, versión 2 (generado desde src/lib/schema.ts)
--- La aplicación actualiza sola los archivos de la versión 1, con copia de seguridad previa.
+-- GESTCON · esquema SQLite, versión 3 (generado desde src/lib/schema.ts)
+-- La aplicación actualiza sola los archivos de versiones anteriores, con copia de seguridad previa.
 
 -- Entidades patrocinadas: una por CIF. Sus datos sirven para rellenar nuevos patrocinios.
 CREATE TABLE IF NOT EXISTS entidades (
@@ -51,6 +51,8 @@ CREATE TABLE patrocinios (
   -- Control
   creado                 TEXT NOT NULL DEFAULT (datetime('now')),
   modificado             TEXT NOT NULL DEFAULT (datetime('now')),
+  creado_por             TEXT NOT NULL DEFAULT '',   -- nombre del usuario
+  modificado_por         TEXT NOT NULL DEFAULT '',
   CHECK (fecha_fin IS NULL OR fecha_inicio IS NULL OR fecha_fin >= fecha_inicio)
 );
 
@@ -60,12 +62,41 @@ CREATE TABLE IF NOT EXISTS configuracion (
 );
 
 
+-- Quién puede usar la aplicación y con qué rol.
+--   email:   cuenta de Google (datos en Google Drive)
+--   usuario: nombre de usuario con contraseña (datos en una carpeta del ordenador o de red)
+CREATE TABLE IF NOT EXISTS usuarios (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre         TEXT NOT NULL DEFAULT '',
+  email          TEXT UNIQUE COLLATE NOCASE,
+  usuario        TEXT UNIQUE COLLATE NOCASE,
+  clave_hash     TEXT,                                  -- PBKDF2-SHA256, nunca la contraseña
+  clave_sal      TEXT,
+  cambiar_clave  INTEGER NOT NULL DEFAULT 0,            -- 1: debe cambiarla al entrar
+  rol            TEXT NOT NULL DEFAULT 'consulta' CHECK (rol IN ('consulta','edicion','admin')),
+  activo         INTEGER NOT NULL DEFAULT 1,
+  creado         TEXT NOT NULL DEFAULT (datetime('now')),
+  modificado     TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK (email IS NOT NULL OR usuario IS NOT NULL)
+);
+
+-- Cada cambio guardado lleva un identificador único. Sirve para comprobar que ningún cambio
+-- se pierde cuando varios usuarios guardan a la vez. Se conservan 30 días.
+CREATE TABLE IF NOT EXISTS operaciones (
+  id        TEXT PRIMARY KEY,
+  usuario   TEXT NOT NULL DEFAULT '',
+  tipo      TEXT NOT NULL,
+  registro  INTEGER,
+  fecha     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+
 CREATE TRIGGER IF NOT EXISTS patrocinios_modificado AFTER UPDATE ON patrocinios
 FOR EACH ROW WHEN NEW.modificado = OLD.modificado
 BEGIN
   UPDATE patrocinios SET modificado = datetime('now') WHERE id = NEW.id;
 END;
 
-INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','2'), ('tipo_iva','21');
-PRAGMA user_version = 2;
+INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','3'), ('tipo_iva','21');
+PRAGMA user_version = 3;
 

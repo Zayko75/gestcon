@@ -105,10 +105,8 @@ function BloqueDrive() {
   )
 }
 
-export function PantallaConexion() {
-  const { fase, error, carpetaGuardada, continuar, elegirOtra, crearBDVacia, nombreCarpeta, dirRaiz } = useStore()
-  const local = soportado()
-
+/** Marco de las pantallas de conexión y acceso: panel con la marca a la izquierda y el contenido a la derecha */
+export function MarcoConexion({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-full lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <aside className="relative flex flex-col justify-between gap-10 overflow-hidden bg-noche px-6 py-8 text-white sm:px-10 lg:min-h-full lg:px-12 lg:py-12">
@@ -125,7 +123,18 @@ export function PantallaConexion() {
       </aside>
 
       <div className="flex justify-center px-5 py-10 sm:px-10 lg:items-center lg:py-16">
-        <div className="w-full max-w-lg">
+        <div className="w-full max-w-lg">{children}</div>
+      </div>
+    </main>
+  )
+}
+
+export function PantallaConexion() {
+  const { fase, error, carpetaGuardada, continuar, elegirOtra, crearBDVacia, nombreCarpeta, dirRaiz } = useStore()
+  const local = soportado()
+
+  return (
+    <MarcoConexion>
           {fase === 'cargando' ? (
             <div role="status">
               <h1 className="titulo">Abriendo los datos…</h1>
@@ -191,8 +200,6 @@ export function PantallaConexion() {
               </section>
             </div>
           )}
-        </div>
-      </div>
-    </main>
+    </MarcoConexion>
   )
 }

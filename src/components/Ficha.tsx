@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { aBorrador, borradorVacio, deBorrador, letrasDe, type Borrador } from '../lib/borrador'
 import { creditoDe, delMismoAnio, limiteMenor, sinIva as sinIvaDe, usoConCambio } from '../lib/control'
-import { eur, importeSinIva, parseImporte } from '../lib/format'
+import { eur, fechaHoraES, importeSinIva, parseImporte } from '../lib/format'
+import { nombreAutor } from '../lib/acceso'
+import { datosDe, diferencias } from '../lib/operaciones'
 import { MUNICIPIOS } from '../lib/municipios'
 import { useStore } from '../lib/store'
 import { aplicacionPorDefecto, claveCif, emailValido, formatoAplicacion, formatoDni, letraDni, soportesEnumerados, textoDeFechas, variasLineas } from '../lib/textos'
@@ -42,7 +44,8 @@ function Seccion({ titulo, descripcion, children }: { titulo: string; descripcio
 }
 
 export function Ficha({ id }: { id: number | null }) {
-  const { registros, entidades, crear, actualizar, eliminar, copiaAhora, ivaPct, config } = useStore()
+  const { registros, entidades, crear, actualizar, eliminar, copiaAhora, ivaPct, config, puede, usuario } = useStore()
+  const soloLectura = !puede('editar')
   const aviso = useAviso()
   const guardado = id !== null ? registros.find((r) => r.id === id) : undefined
 
@@ -50,6 +53,8 @@ export function Ficha({ id }: { id: number | null }) {
   const [errorGuardar, setErrorGuardar] = useState('')
   const [confirmarBorrar, setConfirmarBorrar] = useState(false)
   const ultimo = useRef(JSON.stringify(b)) // última versión guardada
+  /** La ficha tal como está guardada: lo que se guarda son solo los campos que cambian respecto a ella */
+  const baseB = useRef<Borrador>(b)
   const temporizador = useRef<number | undefined>(undefined)
   const bRef = useRef(b)
   bRef.current = b
@@ -118,15 +123,51 @@ export function Ficha({ id }: { id: number | null }) {
     if ('error' in r) { setErrorGuardar(r.error); return false }
     setErrorGuardar('')
     if (JSON.stringify(actual) === ultimo.current) return true
+    const base = deBorrador(baseB.current)
+    // Solo los campos cambiados: así no se deshacen los cambios que otro usuario haya hecho en otros campos
+    const cambios = 'datos' in base ? diferencias(base.datos, r.datos) : r.datos
+    const antes = baseB.current
+    baseB.current = actual
+    ultimo.current = JSON.stringify(actual)
     try {
-      await actualizar(id, r.datos)
-      ultimo.current = JSON.stringify(actual)
+      await actualizar(id, cambios)
       return true
     } catch (e) {
+      baseB.current = antes
+      ultimo.current = JSON.stringify(antes)
       setErrorGuardar('No se pudo guardar: ' + (e instanceof Error ? e.message : String(e)))
       return false
     }
   }, [id, actualizar])
+
+  // Cambios de otros usuarios en este patrocinio: se incorporan los campos que no estás editando
+  useEffect(() => {
+    if (id === null || !guardado) return
+    const base = deBorrador(baseB.current)
+    if (!('datos' in base)) return
+    const campos = Object.keys(diferencias(base.datos, datosDe(guardado))) as (keyof Borrador)[]
+    if (!campos.length) return
+    const remoto = aBorrador(guardado)
+    const local = deBorrador(bRef.current)
+    const nuevoB = { ...bRef.current }
+    const nuevaBase = { ...baseB.current }
+    const enConflicto: string[] = []
+    for (const c of campos) {
+      const tocado = 'datos' in local && (local.datos as unknown as Record<string, unknown>)[c] !== (base.datos as unknown as Record<string, unknown>)[c]
+      ;(nuevaBase as Record<string, unknown>)[c] = remoto[c]
+      if (tocado) enConflicto.push(c)
+      else (nuevoB as Record<string, unknown>)[c] = remoto[c]
+    }
+    baseB.current = nuevaBase
+    ultimo.current = JSON.stringify(nuevaBase)
+    setB(nuevoB)
+    const quien = guardado.modificado_por || 'Otro usuario'
+    if (!usuario || guardado.modificado_por !== nombreAutor(usuario)) {
+      aviso(enConflicto.length
+        ? `${quien} ha modificado este patrocinio a la vez que tú. Se mantiene lo que has escrito en ${enConflicto.length === 1 ? 'el campo que estabas cambiando' : 'los campos que estabas cambiando'}.`
+        : `${quien} acaba de modificar este patrocinio. La ficha se ha actualizado.`, enConflicto.length ? 'aviso' : 'ok')
+    }
+  }, [guardado, id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Guardado automático: 2 s después de dejar de escribir, o al salir del campo
   useEffect(() => {
@@ -243,6 +284,9 @@ export function Ficha({ id }: { id: number | null }) {
           <p className="mt-1.5 max-w-3xl text-tinta/65">
             {id === null ? 'Rellena los datos y pulsa «Crear patrocinio». A partir de ahí, los cambios se guardan solos.' : b.evento}
           </p>
+          {guardado?.modificado_por && (
+            <p className="mt-1 text-[0.84rem] text-tinta/50">Última modificación: {guardado.modificado_por}, {fechaHoraES(new Date(guardado.modificado.replace(' ', 'T') + 'Z'))}</p>
+          )}
         </div>
         <div className="w-full sm:w-auto">
           <span id="t-estado" className="etiqueta">Estado del expediente</span>
@@ -260,7 +304,13 @@ export function Ficha({ id }: { id: number | null }) {
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div>
-          <div className="overflow-hidden rounded-xl border border-linea bg-white" onBlurCapture={() => { if (id !== null) void guardarAhora() }}>
+          {soloLectura && (
+            <p className="mb-4 rounded-xl border border-linea bg-white px-4 py-3 text-[0.92rem] text-tinta/75" role="note">
+              Tu usuario es de <strong>consulta</strong>: puedes ver los datos y los documentos ya generados, pero no modificarlos.
+            </p>
+          )}
+          <fieldset disabled={soloLectura} className="m-0 min-w-0 border-0 p-0">
+          <div className="overflow-hidden rounded-xl border border-linea bg-white" onBlurCapture={() => { if (id !== null && !soloLectura) void guardarAhora() }}>
           <Seccion titulo="Entidad" descripcion="Quién recibe el patrocinio y cómo contactar.">
             <Campo id="f-entidad" etiqueta="Entidad" className="sm:col-span-2"
               accion={guardado?.entidad_id ? <a href={`#/entidad/${guardado.entidad_id}`} className="mb-1.5 rounded text-[0.8rem] font-semibold text-indigo hover:underline">Ver sus patrocinios</a> : undefined}
@@ -365,13 +415,14 @@ export function Ficha({ id }: { id: number | null }) {
           </Seccion>
 
           </div>
+          </fieldset>
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            {id === null ? (
+            {soloLectura ? null : id === null ? (
               <button className="btn-primario" onClick={crearNuevo}>Crear patrocinio</button>
             ) : (
               <>
                 <button className="btn-sec" onClick={duplicar}>Duplicar</button>
-                <button className="btn-peligro ml-auto" onClick={() => setConfirmarBorrar(true)}>Eliminar</button>
+                {puede('administrar') && <button className="btn-peligro ml-auto" onClick={() => setConfirmarBorrar(true)}>Eliminar</button>}
               </>
             )}
           </div>

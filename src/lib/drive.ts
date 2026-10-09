@@ -261,3 +261,44 @@ export class CarpetaDrive implements Carpeta {
     return out
   }
 }
+
+// ---------- Usuario y permisos de la carpeta ----------
+/** Cuenta de Google con la que se ha iniciado sesión */
+export async function usuarioGoogle(): Promise<{ email: string; nombre: string }> {
+  const j = await (await api(`${API}/about?fields=user(displayName,emailAddress)`)).json()
+  return { email: String(j.user?.emailAddress ?? '').toLowerCase(), nombre: String(j.user?.displayName ?? '') }
+}
+
+export interface PermisoDrive { id: string; tipo: string; rol: string; email: string }
+
+export async function permisosCarpeta(carpetaId: string): Promise<PermisoDrive[]> {
+  const j = await (await api(`${API}/files/${carpetaId}/permissions?fields=permissions(id,type,role,emailAddress)&supportsAllDrives=true`)).json()
+  return (j.permissions ?? []).map((p: any) => ({ id: p.id, tipo: p.type, rol: p.role, email: String(p.emailAddress ?? '').toLowerCase() }))
+}
+
+/**
+ * Da a una cuenta el permiso indicado sobre la carpeta (lector o editor), o se lo quita (null).
+ * El propietario de la carpeta no se toca. Devuelve lo que se ha hecho.
+ */
+export async function ajustarPermisoCarpeta(carpetaId: string, email: string, rol: 'reader' | 'writer' | null, mensaje = ''): Promise<'creado' | 'cambiado' | 'quitado' | 'sin-cambios' | 'propietario'> {
+  const correo = email.trim().toLowerCase()
+  const actual = (await permisosCarpeta(carpetaId)).find((p) => p.tipo === 'user' && p.email === correo)
+  if (actual?.rol === 'owner' || actual?.rol === 'organizer') return 'propietario'
+  if (rol === null) {
+    if (!actual) return 'sin-cambios'
+    await api(`${API}/files/${carpetaId}/permissions/${actual.id}?supportsAllDrives=true`, { method: 'DELETE' })
+    return 'quitado'
+  }
+  if (actual) {
+    if (actual.rol === rol) return 'sin-cambios'
+    await api(`${API}/files/${carpetaId}/permissions/${actual.id}?supportsAllDrives=true`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: rol }),
+    })
+    return 'cambiado'
+  }
+  const aviso = mensaje ? `&emailMessage=${encodeURIComponent(mensaje)}` : ''
+  await api(`${API}/files/${carpetaId}/permissions?sendNotificationEmail=true${aviso}&supportsAllDrives=true`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'user', role: rol, emailAddress: correo }),
+  })
+  return 'creado'
+}
