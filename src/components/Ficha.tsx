@@ -4,10 +4,11 @@ import { creditoDe, delMismoAnio, limiteMenor, sinIva as sinIvaDe, usoConCambio 
 import { eur, fechaHoraES, importeSinIva, parseImporte } from '../lib/format'
 import { nombreAutor } from '../lib/acceso'
 import { datosDe, diferencias } from '../lib/operaciones'
+import { anotar, camposVisibles, devolver, NOMBRE_CAMPO, pasosDeshacer, pasosRehacer, resumenPaso, sacar, valorLegible, type Paso } from '../lib/deshacer'
 import { MUNICIPIOS } from '../lib/municipios'
 import { useStore } from '../lib/store'
 import { aplicacionPorDefecto, claveCif, emailValido, formatoAplicacion, formatoDni, letraDni, soportesEnumerados, textoDeFechas, variasLineas } from '../lib/textos'
-import type { Entidad, Estado, Patrocinio } from '../types'
+import type { DatosPatrocinio, Entidad, Estado, Patrocinio } from '../types'
 import { EntradaMascara } from './EntradaMascara'
 import { ListaSoportes, sugerenciasDeSoportes } from './ListaSoportes'
 import { PanelDocumentos } from './PanelDocumentos'
@@ -58,6 +59,10 @@ export function Ficha({ id }: { id: number | null }) {
   const temporizador = useRef<number | undefined>(undefined)
   const bRef = useRef(b)
   bRef.current = b
+  const [, setVersionPasos] = useState(0) // vuelve a pintar los botones de deshacer y rehacer
+  const ocupadoDeshacer = useRef(false)
+  /** Guardado que está en marcha (por ejemplo, el de salir de un campo al pulsar Deshacer) */
+  const enCurso = useRef<Promise<boolean> | null>(null)
 
   const set = <K extends keyof Borrador>(k: K, v: Borrador[K]) => setB((x) => ({ ...x, [k]: v }))
   const texto = (k: keyof Borrador) => ({
@@ -122,15 +127,24 @@ export function Ficha({ id }: { id: number | null }) {
     const r = deBorrador(actual)
     if ('error' in r) { setErrorGuardar(r.error); return false }
     setErrorGuardar('')
-    if (JSON.stringify(actual) === ultimo.current) return true
+    if (JSON.stringify(actual) === ultimo.current) return enCurso.current ? enCurso.current : true
     const base = deBorrador(baseB.current)
     // Solo los campos cambiados: así no se deshacen los cambios que otro usuario haya hecho en otros campos
     const cambios = 'datos' in base ? diferencias(base.datos, r.datos) : r.datos
     const antes = baseB.current
     baseB.current = actual
     ultimo.current = JSON.stringify(actual)
+    const guardar = async (): Promise<boolean> => {
     try {
       await actualizar(id, cambios)
+      if ('datos' in base) {
+        const anteriores = base.datos as unknown as Record<string, unknown>
+        anotar(id, {
+          antes: Object.fromEntries(Object.keys(cambios).map((c) => [c, anteriores[c]])) as Partial<DatosPatrocinio>,
+          despues: cambios, fecha: Date.now(),
+        })
+        setVersionPasos((n) => n + 1)
+      }
       return true
     } catch (e) {
       baseB.current = antes
@@ -138,7 +152,95 @@ export function Ficha({ id }: { id: number | null }) {
       setErrorGuardar('No se pudo guardar: ' + (e instanceof Error ? e.message : String(e)))
       return false
     }
+    }
+    const p = guardar()
+    enCurso.current = p
+    void p.finally(() => { if (enCurso.current === p) enCurso.current = null })
+    return p
   }, [id, actualizar])
+
+  /** Deshace el último cambio guardado (o rehace el último deshecho). Lo que se acaba de escribir cuenta como un cambio. */
+  const moverPaso = useCallback(async (cual: 'deshacer' | 'rehacer', silencioso = false): Promise<boolean> => {
+    if (id === null || soloLectura || ocupadoDeshacer.current) return false
+    ocupadoDeshacer.current = true
+    try {
+      // Lo escrito que no se puede guardar (por ejemplo, un importe mal escrito) se descarta al deshacer
+      if (cual === 'deshacer' && 'error' in deBorrador(bRef.current)) {
+        window.clearTimeout(temporizador.current)
+        setB(baseB.current)
+        setErrorGuardar('')
+        if (!silencioso) aviso('Se ha deshecho lo que habías escrito sin guardar.')
+        return true
+      }
+      if (!(await guardarAhora())) return false
+      const paso = sacar(id, cual)
+      if (!paso) return false
+      const base = deBorrador(baseB.current)
+      if (!('datos' in base)) { devolver(id, cual, paso); return false }
+      const actual = base.datos as unknown as Record<string, unknown>
+      const destino = (cual === 'deshacer' ? paso.antes : paso.despues) as Record<string, unknown>
+      const esperado = (cual === 'deshacer' ? paso.despues : paso.antes) as Record<string, unknown>
+      const cambios: Record<string, unknown> = {}
+      const cambiadosPorOtro: string[] = []
+      for (const c of Object.keys(destino)) {
+        if (actual[c] === destino[c]) continue
+        // Si otro usuario cambió ese campo después, se respeta su cambio
+        if (actual[c] !== esperado[c]) { cambiadosPorOtro.push(NOMBRE_CAMPO[c as keyof DatosPatrocinio]); continue }
+        cambios[c] = destino[c]
+      }
+      const otro = cambiadosPorOtro.length ? ` No se ha tocado ${cambiadosPorOtro.join(', ')} porque otro usuario lo cambió después.` : ''
+      if (!Object.keys(cambios).length) {
+        setVersionPasos((n) => n + 1)
+        if (!silencioso) aviso(`No había nada que ${cual === 'deshacer' ? 'deshacer' : 'rehacer'} en ${resumenPaso(paso)}.${otro}`, 'aviso')
+        return true
+      }
+      try {
+        await actualizar(id, cambios as Partial<DatosPatrocinio>)
+      } catch (e) {
+        devolver(id, cual, paso)
+        setVersionPasos((n) => n + 1)
+        setErrorGuardar(`No se pudo ${cual === 'deshacer' ? 'deshacer' : 'rehacer'}: ` + (e instanceof Error ? e.message : String(e)))
+        return false
+      }
+      const reg = registros.find((r) => r.id === id)
+      const nueva = aBorrador({ ...(reg as Patrocinio), ...(base.datos as DatosPatrocinio), ...(cambios as Partial<DatosPatrocinio>) })
+      baseB.current = nueva
+      ultimo.current = JSON.stringify(nueva)
+      setB(nueva)
+      setVersionPasos((n) => n + 1)
+      if (!silencioso) aviso(`${cual === 'deshacer' ? 'Deshecho' : 'Rehecho'}: ${resumenPaso(paso)}.${otro}`, otro ? 'aviso' : 'ok')
+      return true
+    } finally {
+      ocupadoDeshacer.current = false
+    }
+  }, [id, soloLectura, guardarAhora, actualizar, registros, aviso])
+
+  /** Deshace varios cambios seguidos, hasta dejar la ficha como estaba antes del cambio nº «hasta» */
+  const deshacerHasta = async (hasta: number) => {
+    let n = 0
+    while (id !== null && pasosDeshacer(id).length > hasta) {
+      if (!(await moverPaso('deshacer', true))) break
+      n++
+    }
+    if (n) aviso(n === 1 ? 'Se ha deshecho 1 cambio.' : `Se han deshecho ${n} cambios.`)
+  }
+
+  // Ctrl+Z / Ctrl+Y (o Ctrl+Mayús+Z) fuera de un campo: deshacer y rehacer cambios guardados.
+  // Dentro de un campo, Ctrl+Z sigue deshaciendo lo que se está escribiendo, como siempre.
+  const moverRef = useRef(moverPaso)
+  moverRef.current = moverPaso
+  useEffect(() => {
+    const f = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      const k = e.key.toLowerCase()
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); void moverRef.current('deshacer') }
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); void moverRef.current('rehacer') }
+    }
+    window.addEventListener('keydown', f)
+    return () => window.removeEventListener('keydown', f)
+  }, [])
 
   // Cambios de otros usuarios en este patrocinio: se incorporan los campos que no estás editando
   useEffect(() => {
@@ -286,6 +388,10 @@ export function Ficha({ id }: { id: number | null }) {
           </p>
           {guardado?.modificado_por && (
             <p className="mt-1 text-[0.84rem] text-tinta/50">Última modificación: {guardado.modificado_por}, {fechaHoraES(new Date(guardado.modificado.replace(' ', 'T') + 'Z'))}</p>
+          )}
+          {id !== null && !soloLectura && (
+            <BarraDeshacer id={id} pendiente={JSON.stringify(b) !== ultimo.current} invalido={'error' in parsed}
+              onDeshacer={() => void moverPaso('deshacer')} onRehacer={() => void moverPaso('rehacer')} onDeshacerHasta={deshacerHasta} />
           )}
         </div>
         <div className="w-full sm:w-auto">
@@ -449,5 +555,82 @@ export function Ficha({ id }: { id: number | null }) {
         </Dialogo>
       )}
     </main>
+  )
+}
+
+const icono = (d: 'deshacer' | 'rehacer') => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {d === 'deshacer' ? <><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></> : <><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></>}
+  </svg>
+)
+
+/** Cambio de un campo: «Importe total: 4.235,00 € → 5.000,00 €» */
+function DetallePaso({ paso }: { paso: Paso }) {
+  return (
+    <ul className="space-y-0.5">
+      {camposVisibles(paso).map((c) => (
+        <li key={c} className="break-words">
+          <span className="font-medium text-tinta/80">{NOMBRE_CAMPO[c]}:</span>{' '}
+          <span className="text-tinta/55 line-through decoration-tinta/30">{valorLegible(c, paso.antes[c])}</span>
+          <span className="px-1 text-tinta/40" aria-label="pasa a">→</span>
+          <span className="text-tinta/85">{valorLegible(c, paso.despues[c])}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** Botones Deshacer / Rehacer y lista de los cambios hechos en esta sesión */
+function BarraDeshacer({ id, pendiente, invalido, onDeshacer, onRehacer, onDeshacerHasta }: {
+  id: number; pendiente: boolean; invalido: boolean; onDeshacer: () => void; onRehacer: () => void; onDeshacerHasta: (hasta: number) => void
+}) {
+  const [abierta, setAbierta] = useState(false)
+  const pasos = pasosDeshacer(id)
+  const rehacer = pasosRehacer(id)
+  const ultimoPaso = pasos[pasos.length - 1]
+  const puedeDeshacer = pasos.length > 0 || pendiente
+  if (!puedeDeshacer && !rehacer.length) return null
+  const proximoRehacer = rehacer[rehacer.length - 1]
+  return (
+    <div className="mt-2.5 text-[0.86rem]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="inline-flex overflow-hidden rounded-lg border border-linea bg-white">
+          <button type="button" className="inline-flex items-center gap-1.5 px-3 py-1.5 font-semibold text-indigo hover:bg-indigo-claro/50 disabled:text-tinta/30 disabled:hover:bg-transparent"
+            onClick={onDeshacer} disabled={!puedeDeshacer}
+            title={ultimoPaso && !pendiente ? `Deshacer: ${resumenPaso(ultimoPaso)} (Ctrl+Z)` : 'Deshacer lo último que has escrito (Ctrl+Z)'}>
+            {icono('deshacer')} Deshacer
+          </button>
+          <button type="button" className="inline-flex items-center gap-1.5 border-l border-linea px-3 py-1.5 font-semibold text-indigo hover:bg-indigo-claro/50 disabled:text-tinta/30 disabled:hover:bg-transparent"
+            onClick={onRehacer} disabled={!proximoRehacer || pendiente}
+            title={proximoRehacer ? `Rehacer: ${resumenPaso(proximoRehacer)} (Ctrl+Y)` : 'No hay nada que rehacer'}>
+            {icono('rehacer')} Rehacer
+          </button>
+        </span>
+        <span className="min-w-0 text-tinta/60" aria-live="polite">
+          {pendiente ? (invalido ? 'Hay un dato sin guardar: Deshacer lo quita.' : 'Guardando lo que has escrito…')
+            : ultimoPaso ? <>Último cambio: <strong className="font-semibold text-tinta/80">{resumenPaso(ultimoPaso)}</strong></>
+              : proximoRehacer ? <>Deshecho: <strong className="font-semibold text-tinta/80">{resumenPaso(proximoRehacer)}</strong></> : null}
+        </span>
+        {pasos.length > 0 && (
+          <button type="button" className="font-medium text-indigo underline-offset-2 hover:underline" aria-expanded={abierta} onClick={() => setAbierta((x) => !x)}>
+            {abierta ? 'Ocultar cambios' : `Ver cambios (${pasos.length})`}
+          </button>
+        )}
+      </div>
+      {abierta && pasos.length > 0 && (
+        <ol className="mt-2.5 max-w-3xl divide-y divide-linea overflow-hidden rounded-lg border border-linea bg-white" aria-label="Cambios hechos en esta sesión">
+          {[...pasos].map((p, i) => ({ p, i })).reverse().map(({ p, i }) => (
+            <li key={p.fecha + '-' + i} className="flex flex-wrap items-start gap-x-4 gap-y-1.5 px-4 py-2.5">
+              <span className="w-12 shrink-0 pt-px tabular-nums text-tinta/50">{new Date(p.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+              <div className="min-w-0 flex-1 basis-60"><DetallePaso paso={p} /></div>
+              <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => onDeshacerHasta(i)}
+                title={i === pasos.length - 1 ? 'Deshacer este cambio' : 'Deshacer este cambio y todos los posteriores'}>
+                {i === pasos.length - 1 ? 'Deshacer' : 'Deshacer hasta aquí'}
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   )
 }

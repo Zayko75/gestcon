@@ -12,6 +12,7 @@ import {
   nuevoIdOperacion, problemaClave, puede as puedeRol, SinPermisoError, type Accion,
 } from './acceso'
 import * as cif from './cifrado'
+import { olvidarTodo as olvidarDeshacer } from './deshacer'
 
 type Fase =
   | 'inicio' | 'cargando' | 'sin-bd' | 'error'
@@ -461,6 +462,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Lo que quede por guardar se intenta guardar antes de salir
     sincronizar().catch(() => undefined).finally(() => { claveDatos.current = null })
     if (handle.current) guardarSesion(handle.current.nombre, null)
+    olvidarDeshacer()
     setError('')
     setUsuario(null)
     usuarioRef.current = null
@@ -502,6 +504,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       db.current = null
     })
     if (h) guardarSesion(h.nombre, null)
+    olvidarDeshacer() // el siguiente usuario no puede deshacer lo que hizo el anterior
     // El siguiente usuario empieza en el listado, no en la última pantalla del anterior
     if (location.hash && location.hash !== '#/') location.hash = '#/'
     setUsuario(null)
@@ -694,6 +697,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     db.current = copia
     pendientes.current = []
     porConfirmar.current = []
+    olvidarDeshacer()
     refrescar()
   }, [abrirBytes, serializar, sincronizar, refrescar])
 

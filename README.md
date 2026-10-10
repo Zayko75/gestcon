@@ -119,6 +119,10 @@ Patrocinios/
 **Ficha.**
 - Los cambios se guardan solos (arriba aparece «Guardado a las…»). No hay botón de guardar.
 - Un patrocinio nuevo se guarda al pulsar **Crear patrocinio**; a partir de ahí se guarda solo.
+- **Deshacer y Rehacer** (debajo del nombre de la entidad): deshace el último cambio guardado, aunque ya se haya guardado en la carpeta. También con **Ctrl+Z** y **Ctrl+Y** cuando no estás escribiendo en un campo (dentro de un campo, Ctrl+Z sigue deshaciendo lo que escribes, como siempre).
+  - *Ver cambios* muestra los cambios de esta sesión con el valor anterior y el nuevo; *Deshacer hasta aquí* deja la ficha como estaba antes de ese cambio.
+  - Si otro usuario ha cambiado después ese mismo campo, no se pisa su cambio: se avisa.
+  - Se recuerda mientras la pestaña está abierta (también al ir a otras fichas y volver). Al cerrar la pestaña o la sesión se olvida.
 - **Estado del expediente**: En preparación, Pendiente de firma, Firmado o Tramitado. En el listado, «Pendientes» son todos los que aún no están tramitados.
 - **Entidad**: en un patrocinio nuevo, al elegir una entidad que ya ha tenido patrocinios se rellenan su CIF, representante, DNI/NIE, teléfono y email. Cada patrocinio guarda su propia copia de esos datos, que es la que se imprime.
 - **Anualidad**: un patrocinio nuevo empieza con el año en curso y la aplicación `año/1301/3411/22608`. Al cambiar la anualidad cambia también el año de la aplicación; si no coinciden, se avisa.
