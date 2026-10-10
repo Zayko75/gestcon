@@ -4,17 +4,14 @@ import { pendientes } from '../lib/control'
 import { horaCorta } from '../lib/format'
 import { useStore } from '../lib/store'
 import { Dialogo, useAviso } from './ui'
+import logo from '../assets/logo.png'
 
-/** Marca de la aplicación: un dorsal con las iniciales */
+/** Marca de la aplicación: el logo (contrato, apretón de manos y balón) y el nombre */
 export function Marca({ claro = false }: { claro?: boolean }) {
   return (
     <span className="flex items-center gap-3">
-      <svg width="34" height="38" viewBox="0 0 34 38" aria-hidden="true" className="shrink-0">
-        <rect x="1" y="1" width="32" height="36" rx="5" fill={claro ? '#fff' : '#2c3487'} />
-        <rect x="1" y="1" width="32" height="8" rx="4" fill={claro ? '#c9cdf0' : '#161b45'} />
-        <circle cx="7" cy="5" r="1.4" fill={claro ? '#2c3487' : '#fff'} /><circle cx="27" cy="5" r="1.4" fill={claro ? '#2c3487' : '#fff'} />
-        <text x="17" y="30" textAnchor="middle" fontFamily="'Barlow Condensed', sans-serif" fontWeight="700" fontSize="16" letterSpacing="0.5" fill={claro ? '#161b45' : '#fff'}>GC</text>
-      </svg>
+      <img src={logo} alt="" width={48} height={48} draggable={false}
+        className={`size-12 shrink-0 rounded-[11px] ${claro ? 'ring-1 ring-white/15' : 'shadow-[0_6px_14px_-6px_rgba(22,27,69,.6)]'}`} />
       <span className="leading-none">
         <span className="block font-display text-[1.45rem] font-bold tracking-[0.02em]">GESTCON</span>
         <span className={`mt-1 block text-[0.78rem] ${claro ? 'text-white/60' : 'text-tinta/55'}`}>Patrocinios deportivos</span>
