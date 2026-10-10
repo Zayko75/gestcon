@@ -75,6 +75,14 @@ function BloqueDrive() {
         <IconoDrive blanco /> {buscando ? 'Conectando…' : 'Conectar con Google Drive'}
       </button>
 
+      <details className="rounded-lg border border-linea bg-white px-3.5 py-2.5 text-[0.88rem] text-tinta/75">
+        <summary className="cursor-pointer font-medium text-tinta">¿Sale «Google no ha verificado esta aplicación»?</summary>
+        <p className="mt-2 leading-relaxed">
+          Es normal la primera vez: GESTCON es una aplicación propia del servicio y no está inscrita en el registro de Google. Pulsa <strong>Configuración avanzada</strong> (abajo a la izquierda), después <strong>Ir a GESTCON</strong>, y en la siguiente pantalla marca el acceso a Google Drive y pulsa <strong>Continuar</strong>. Solo hay que hacerlo una vez en cada navegador.
+        </p>
+        <p className="mt-2 leading-relaxed">GESTCON solo usa ese acceso para la carpeta de patrocinios; no hay ningún servidor intermedio.</p>
+      </details>
+
       {candidatos && candidatos.length === 0 && (
         <p className="text-[0.9rem] text-aviso">
           No hay ninguna carpeta llamada «{nombre.trim()}» en tu Google Drive. Comprueba el nombre o súbela primero a Drive.
