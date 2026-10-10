@@ -1,7 +1,7 @@
-// Esquema de datos.sqlite (versión 3). Se usa al crear una base de datos vacía y en la migración desde la versión 1.
+// Esquema de datos.sqlite (versión 4). Se usa al crear una base de datos vacía y en la migración desde la versión 1.
 // Copia legible en docs/esquema.sql.
 
-export const VERSION_ESQUEMA = 3
+export const VERSION_ESQUEMA = 4
 
 export const ESTADOS = ['preparacion', 'pendiente_firma', 'firmado', 'tramitado'] as const
 
@@ -74,9 +74,9 @@ CREATE TABLE IF NOT EXISTS configuracion (
 
 /** Usuarios y registro de operaciones (versión 3) */
 export const USUARIOS_SQL = `
--- Quién puede usar la aplicación y con qué rol.
---   email:   cuenta de Google (datos en Google Drive)
---   usuario: nombre de usuario con contraseña (datos en una carpeta del ordenador o de red)
+-- Quién puede usar la aplicación y con qué rol. Se entra con «usuario» y contraseña.
+-- La contraseña no se guarda: con ella se abre la llave del usuario (tabla «llaves»).
+-- (email, clave_hash y clave_sal son de la versión 3 y ya no se usan.)
 CREATE TABLE IF NOT EXISTS usuarios (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   nombre         TEXT NOT NULL DEFAULT '',
@@ -90,6 +90,16 @@ CREATE TABLE IF NOT EXISTS usuarios (
   creado         TEXT NOT NULL DEFAULT (datetime('now')),
   modificado     TEXT NOT NULL DEFAULT (datetime('now')),
   CHECK (email IS NOT NULL OR usuario IS NOT NULL)
+);
+
+-- Llave de cada usuario: la clave con la que se cifra el archivo, envuelta con su contraseña
+-- (PBKDF2-SHA256 + AES-GCM). «titular» es «u:<id de usuario>» o «recuperacion» (código de recuperación).
+-- Al guardar, las llaves de los usuarios activos se copian a la cabecera del archivo cifrado.
+CREATE TABLE IF NOT EXISTS llaves (
+  titular     TEXT PRIMARY KEY,
+  sal         TEXT NOT NULL,
+  iv          TEXT NOT NULL,
+  envoltorio  TEXT NOT NULL
 );
 
 -- Cada cambio guardado lleva un identificador único. Sirve para comprobar que ningún cambio

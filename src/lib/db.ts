@@ -201,6 +201,36 @@ export function borrarUsuario(db: Database, id: number): void {
   db.run('DELETE FROM usuarios WHERE id=?', [id])
 }
 
+// ---------- Llaves (cifrado) ----------
+export interface FilaLlave { titular: string; sal: string; iv: string; envoltorio: string }
+
+export function listarLlaves(db: Database): FilaLlave[] {
+  try { return filas<FilaLlave>(db, 'SELECT * FROM llaves ORDER BY titular') } catch { return [] }
+}
+
+export function guardarLlave(db: Database, titular: string, ll: Omit<FilaLlave, 'titular'> | null): void {
+  if (ll === null) db.run('DELETE FROM llaves WHERE titular=?', [titular])
+  else db.run('INSERT INTO llaves (titular, sal, iv, envoltorio) VALUES (?,?,?,?) ON CONFLICT(titular) DO UPDATE SET sal=excluded.sal, iv=excluded.iv, envoltorio=excluded.envoltorio', [titular, ll.sal, ll.iv, ll.envoltorio])
+}
+
+/** Llaves que van en la cabecera del archivo: las de los usuarios activos con nombre de usuario, y la de recuperación */
+export function llavesParaCabecera(db: Database): { t: string; u: string; s: string; i: string; k: string }[] {
+  return filas<{ titular: string; sal: string; iv: string; envoltorio: string; usuario: string | null; activo: number | null }>(db,
+    `SELECT l.*, u.usuario, u.activo FROM llaves l LEFT JOIN usuarios u ON l.titular = 'u:' || u.id`)
+    .filter((l) => l.titular === 'recuperacion' || (l.usuario && l.activo))
+    .map((l) => ({ t: l.titular, u: l.titular === 'recuperacion' ? '' : String(l.usuario).toLowerCase(), s: l.sal, i: l.iv, k: l.envoltorio }))
+}
+
+/** Copia usuarios y llaves de una base de datos a otra (al restaurar una copia, el acceso actual se conserva) */
+export function copiarAcceso(origen: Database, destino: Database): void {
+  destino.exec('DELETE FROM llaves; DELETE FROM usuarios;')
+  for (const u of listarUsuarios(origen)) {
+    destino.run('INSERT INTO usuarios (id, nombre, email, usuario, clave_hash, clave_sal, cambiar_clave, rol, activo, creado, modificado) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      [u.id, u.nombre, u.email, u.usuario, u.clave_hash, u.clave_sal, u.cambiar_clave, u.rol, u.activo, u.creado, u.modificado])
+  }
+  for (const l of listarLlaves(origen)) guardarLlave(destino, l.titular, l)
+}
+
 // ---------- Registro de operaciones ----------
 export function operacionAplicada(db: Database, id: string): boolean {
   return filas(db, 'SELECT 1 FROM operaciones WHERE id=?', [id]).length > 0
@@ -227,6 +257,7 @@ export function migrar(db: Database): InformeMigracion | null {
   try {
     if (desde < 2) migrarA2(db, informe)
     if (desde < 3) migrarA3(db, informe)
+    if (desde < 4) migrarA4(db)
     db.exec(`INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','${VERSION_ESQUEMA}')
              ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor`)
     db.exec(`PRAGMA user_version = ${VERSION_ESQUEMA}`)
@@ -239,6 +270,12 @@ export function migrar(db: Database): InformeMigracion | null {
   }
   db.exec('VACUUM') // compacta el archivo
   return informe
+}
+
+/** Versión 3 → 4: llaves de cifrado. Las contraseñas de la versión 3 no sirven para cifrar: hay que ponerlas de nuevo. */
+function migrarA4(db: Database): void {
+  db.exec(USUARIOS_SQL)
+  db.exec("UPDATE usuarios SET clave_hash = NULL, clave_sal = NULL")
 }
 
 /** Versión 2 → 3: usuarios, registro de operaciones y autor de cada cambio */

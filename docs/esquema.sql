@@ -1,5 +1,5 @@
--- GESTCON · esquema SQLite, versión 3 (generado desde src/lib/schema.ts)
--- La aplicación actualiza sola los archivos de versiones anteriores, con copia de seguridad previa.
+-- GESTCON · esquema SQLite, versión 4 (generado desde src/lib/schema.ts)
+-- El archivo se guarda cifrado (ver src/lib/cifrado.ts). La aplicación actualiza sola las versiones anteriores, con copia previa.
 
 -- Entidades patrocinadas: una por CIF. Sus datos sirven para rellenar nuevos patrocinios.
 CREATE TABLE IF NOT EXISTS entidades (
@@ -62,9 +62,9 @@ CREATE TABLE IF NOT EXISTS configuracion (
 );
 
 
--- Quién puede usar la aplicación y con qué rol.
---   email:   cuenta de Google (datos en Google Drive)
---   usuario: nombre de usuario con contraseña (datos en una carpeta del ordenador o de red)
+-- Quién puede usar la aplicación y con qué rol. Se entra con «usuario» y contraseña.
+-- La contraseña no se guarda: con ella se abre la llave del usuario (tabla «llaves»).
+-- (email, clave_hash y clave_sal son de la versión 3 y ya no se usan.)
 CREATE TABLE IF NOT EXISTS usuarios (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   nombre         TEXT NOT NULL DEFAULT '',
@@ -78,6 +78,16 @@ CREATE TABLE IF NOT EXISTS usuarios (
   creado         TEXT NOT NULL DEFAULT (datetime('now')),
   modificado     TEXT NOT NULL DEFAULT (datetime('now')),
   CHECK (email IS NOT NULL OR usuario IS NOT NULL)
+);
+
+-- Llave de cada usuario: la clave con la que se cifra el archivo, envuelta con su contraseña
+-- (PBKDF2-SHA256 + AES-GCM). «titular» es «u:<id de usuario>» o «recuperacion» (código de recuperación).
+-- Al guardar, las llaves de los usuarios activos se copian a la cabecera del archivo cifrado.
+CREATE TABLE IF NOT EXISTS llaves (
+  titular     TEXT PRIMARY KEY,
+  sal         TEXT NOT NULL,
+  iv          TEXT NOT NULL,
+  envoltorio  TEXT NOT NULL
 );
 
 -- Cada cambio guardado lleva un identificador único. Sirve para comprobar que ningún cambio
@@ -97,6 +107,6 @@ BEGIN
   UPDATE patrocinios SET modificado = datetime('now') WHERE id = NEW.id;
 END;
 
-INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','3'), ('tipo_iva','21');
-PRAGMA user_version = 3;
+INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','4'), ('tipo_iva','21');
+PRAGMA user_version = 4;
 

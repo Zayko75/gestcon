@@ -34,7 +34,7 @@ function useEnvio() {
 const AYUDA_CLAVE = `Al menos ${LONGITUD_MINIMA} caracteres, con letras y números.`
 
 function Entrar() {
-  const { entrar, recuperarClave, nombreCarpeta, cambiarCarpeta } = useStore()
+  const { entrar, recuperarClave, nombreCarpeta, cambiarCarpeta, avisoAcceso } = useStore()
   const [modo, setModo] = useState<'entrar' | 'recuperar'>('entrar')
   const [usuario, setUsuario] = useState(() => { try { return localStorage.getItem('gestcon-ultimo-usuario') ?? '' } catch { return '' } })
   const [clave, setClave] = useState('')
@@ -77,7 +77,7 @@ function Entrar() {
         <h1 className="titulo">Entrar</h1>
         <p className="mt-2 leading-relaxed text-tinta/65">Carpeta <strong className="font-semibold text-tinta">{nombreCarpeta}</strong>. Escribe tu usuario y contraseña de GESTCON.</p>
       </div>
-      <MensajeError texto={error} />
+      <MensajeError texto={error || avisoAcceso} />
       <Campo id="a-usuario" etiqueta="Usuario"><input id="a-usuario" className="campo" value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" autoFocus={!usuario} required /></Campo>
       <Campo id="a-clave" etiqueta="Contraseña"><input id="a-clave" type="password" className="campo" value={clave} onChange={(e) => setClave(e.target.value)} autoComplete="current-password" autoFocus={!!usuario} required /></Campo>
       <div className="flex flex-wrap items-center gap-3">
@@ -91,30 +91,33 @@ function Entrar() {
   )
 }
 
-function PrimerAdmin() {
-  const { crearPrimerAdmin, nombreCarpeta } = useStore()
-  const [nombre, setNombre] = useState('')
+function Proteger() {
+  const { proteger, nombreCarpeta, adminPropuesto, registros } = useStore()
+  const [nombre, setNombre] = useState(adminPropuesto)
   const [usuario, setUsuario] = useState('')
   const [clave, setClave] = useState('')
   const [repetir, setRepetir] = useState('')
   const { error, ocupado, enviar } = useEnvio()
+  const hayDatos = registros.length > 0
   return (
     <form className="space-y-5" onSubmit={enviar(async () => {
       if (clave !== repetir) throw new Error('Las dos contraseñas no coinciden.')
-      await crearPrimerAdmin({ nombre, usuario, clave })
+      await proteger({ nombre, usuario, clave })
     })}>
       <div>
-        <h1 className="titulo">Crea el administrador</h1>
+        <h1 className="titulo">{hayDatos ? 'Protege los datos' : 'Crea el administrador'}</h1>
         <p className="mt-2 leading-relaxed text-tinta/65">
-          La carpeta <strong className="font-semibold text-tinta">{nombreCarpeta}</strong> todavía no tiene usuarios. Crea el tuyo: serás el administrador y podrás dar de alta al resto desde <em>Usuarios</em>.
+          {hayDatos
+            ? <>Los datos de la carpeta <strong className="font-semibold text-tinta">{nombreCarpeta}</strong> aún no están protegidos. Crea tu usuario de administrador: a partir de ahora se entrará con usuario y contraseña y el archivo quedará cifrado.</>
+            : <>Crea tu usuario: serás el administrador y podrás dar de alta al resto desde <em>Usuarios</em>. Los datos se guardarán cifrados.</>}
         </p>
       </div>
       <MensajeError texto={error} />
-      <Campo id="p-nombre" etiqueta="Tu nombre"><input id="p-nombre" className="campo" value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete="name" autoFocus required /></Campo>
-      <Campo id="p-usuario" etiqueta="Usuario" ayuda="Con el que entrarás, por ejemplo «bienvenido.oliva»."><input id="p-usuario" className="campo" value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" required /></Campo>
+      <Campo id="p-nombre" etiqueta="Tu nombre"><input id="p-nombre" className="campo" value={nombre} onChange={(e) => setNombre(e.target.value)} autoComplete="name" autoFocus={!nombre} required /></Campo>
+      <Campo id="p-usuario" etiqueta="Usuario" ayuda="Con el que entrarás, por ejemplo «bienve»."><input id="p-usuario" className="campo" value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" autoFocus={!!nombre} required /></Campo>
       <Campo id="p-clave" etiqueta="Contraseña" ayuda={AYUDA_CLAVE}><input id="p-clave" type="password" className="campo" value={clave} onChange={(e) => setClave(e.target.value)} autoComplete="new-password" required /></Campo>
       <Campo id="p-repetir" etiqueta="Repite la contraseña"><input id="p-repetir" type="password" className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value)} autoComplete="new-password" required /></Campo>
-      <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Creando…' : 'Crear administrador y entrar'}</button>
+      <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Protegiendo los datos…' : hayDatos ? 'Proteger y entrar' : 'Crear administrador y entrar'}</button>
     </form>
   )
 }
@@ -146,40 +149,13 @@ function CambiarClave() {
   )
 }
 
-function SinAcceso() {
-  const { origen, emailGoogle, salir, cambiarCarpeta, nombreCarpeta, usuarios } = useStore()
-  const drive = origen === 'drive'
-  const desactivado = drive && usuarios.some((u) => u.email?.toLowerCase() === emailGoogle && !u.activo)
-  return (
-    <div className="space-y-5">
-      <h1 className="titulo">Sin acceso</h1>
-      {drive ? (
-        <p className="leading-relaxed text-tinta/75">
-          La cuenta <strong className="font-semibold text-tinta">{emailGoogle || 'de Google'}</strong> {desactivado ? 'está desactivada en' : 'no está dada de alta en'} GESTCON.
-          Pide a un administrador que {desactivado ? 'la active' : 'te dé de alta con esta cuenta'} en <em>Usuarios</em>.
-        </p>
-      ) : (
-        <p className="leading-relaxed text-tinta/75">
-          Los usuarios de la carpeta <strong className="font-semibold text-tinta">{nombreCarpeta}</strong> entran con su cuenta de Google y ninguno tiene usuario y contraseña.
-          Ábrela con Google Drive, o pide a un administrador que te asigne un usuario y contraseña.
-        </p>
-      )}
-      <div className="flex flex-wrap gap-2">
-        {drive && <button className="btn-primario" onClick={salir}>Usar otra cuenta de Google</button>}
-        <button className="btn-sec" onClick={cambiarCarpeta}>Cambiar carpeta</button>
-      </div>
-    </div>
-  )
-}
-
 export function PantallaAcceso() {
   const { fase } = useStore()
   return (
     <MarcoConexion>
       {fase === 'acceso' && <Entrar />}
-      {fase === 'primer-admin' && <PrimerAdmin />}
+      {fase === 'proteger' && <Proteger />}
       {fase === 'cambiar-clave' && <CambiarClave />}
-      {fase === 'sin-acceso' && <SinAcceso />}
     </MarcoConexion>
   )
 }

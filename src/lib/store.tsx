@@ -8,18 +8,17 @@ import { VERSION_ESQUEMA } from './schema'
 import { copiaDiaria, crearCopia, leerCopia, listarCopias } from './backups'
 import { aplicar, idNuevo, type Operacion, type Resultado } from './operaciones'
 import {
-  CLAVE_RECUPERACION, cifrarClave, claveCorrecta, nombreAutor, normalizarCodigo, normalizarUsuario, nuevoCodigoRecuperacion,
-  nuevoIdOperacion, permisoDrive, problemaClave, puede as puedeRol, SinPermisoError, type Accion,
+  nombreAutor, normalizarCodigo, normalizarUsuario, nuevoCodigoRecuperacion,
+  nuevoIdOperacion, problemaClave, puede as puedeRol, SinPermisoError, type Accion,
 } from './acceso'
+import * as cif from './cifrado'
 
 type Fase =
   | 'inicio' | 'cargando' | 'sin-bd' | 'error'
-  /** Carpeta de red: falta iniciar sesión con usuario y contraseña */
+  /** Falta entrar con usuario y contraseña */
   | 'acceso'
-  /** No hay ningún usuario: hay que crear el primer administrador */
-  | 'primer-admin'
-  /** La cuenta no está dada de alta o está desactivada */
-  | 'sin-acceso'
+  /** El archivo aún no está protegido: hay que crear el administrador (y se cifra) */
+  | 'proteger'
   /** El usuario debe cambiar su contraseña antes de seguir */
   | 'cambiar-clave'
   | 'listo'
@@ -31,7 +30,6 @@ export const INTERVALO_SINCRONIZACION = 15_000
 
 export interface DatosUsuarioForm {
   nombre: string
-  email: string
   usuario: string
   rol: Rol
   activo: boolean
@@ -57,8 +55,10 @@ interface Ctx {
   // Usuarios y permisos
   usuario: Usuario | null
   usuarios: Usuario[]
-  /** Cuenta de Google con la que se ha entrado (aunque no tenga acceso) */
-  emailGoogle: string
+  /** Ids de los usuarios que tienen contraseña (llave) */
+  conClave: number[]
+  /** Mensaje para la pantalla de acceso (p. ej. «tu usuario se ha desactivado») */
+  avisoAcceso: string
   puede: (a: Accion) => boolean
   /** Ids de patrocinios nuevos que cambiaron al combinarse con los de otro usuario */
   remap: Record<number, number>
@@ -77,7 +77,9 @@ interface Ctx {
   // Acceso
   entrar: (usuario: string, clave: string) => Promise<void>
   salir: () => void
-  crearPrimerAdmin: (d: { nombre: string; usuario: string; clave: string }) => Promise<string>
+  proteger: (d: { nombre: string; usuario: string; clave: string }) => Promise<string>
+  /** Nombre del administrador que ya existía en el archivo sin proteger, para proponerlo */
+  adminPropuesto: string
   recuperarClave: (usuario: string, codigo: string, nueva: string) => Promise<string>
   cambiarMiClave: (actual: string, nueva: string) => Promise<void>
   nuevoCodigo: () => Promise<string>
@@ -101,19 +103,23 @@ export function useStore(): Ctx {
   return c
 }
 
+// Sesión de esta pestaña: se olvida al cerrarla (sessionStorage). Guarda la clave para no pedir la contraseña al recargar.
 const CLAVE_SESION = 'gestcon-sesion'
-function leerSesion(carpeta: string): number | null {
+function leerSesion(carpeta: string): { id: number; clave: Uint8Array } | null {
   try {
     const s = JSON.parse(sessionStorage.getItem(CLAVE_SESION) ?? 'null')
-    return s && s.carpeta === carpeta ? Number(s.id) : null
+    return s && s.carpeta === carpeta && s.clave ? { id: Number(s.id), clave: cif.claveDatosDeB64(s.clave) } : null
   } catch { return null }
 }
-function guardarSesion(carpeta: string, id: number | null) {
+function guardarSesion(carpeta: string, id: number | null, clave?: Uint8Array | null) {
   try {
-    if (id === null) sessionStorage.removeItem(CLAVE_SESION)
-    else sessionStorage.setItem(CLAVE_SESION, JSON.stringify({ carpeta, id }))
+    if (id === null || !clave) sessionStorage.removeItem(CLAVE_SESION)
+    else sessionStorage.setItem(CLAVE_SESION, JSON.stringify({ carpeta, id, clave: cif.claveDatosAB64(clave) }))
   } catch { /* sin almacenamiento: habrá que entrar en cada recarga */ }
 }
+
+const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const llaveDeFila = (ll: cif.Llave): Omit<bd.FilaLlave, 'titular'> => ({ sal: ll.s, iv: ll.i, envoltorio: ll.k })
 
 type OpNueva = Operacion extends infer T ? T extends Operacion ? Omit<T, 'id' | 'autor'> : never : never
 
@@ -125,8 +131,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [registros, setRegistros] = useState<Patrocinio[]>([])
   const [entidades, setEntidades] = useState<Entidad[]>([])
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [conClave, setConClave] = useState<number[]>([])
   const [usuario, setUsuario] = useState<Usuario | null>(null)
-  const [emailGoogle, setEmailGoogle] = useState('')
+  const [avisoAcceso, setAvisoAcceso] = useState('')
+  const [adminPropuesto, setAdminPropuesto] = useState('')
   const [informeMigracion, setInformeMigracion] = useState<InformeMigracion | null>(null)
   const [guardado, setGuardado] = useState<EstadoGuardado>({ estado: 'guardado' })
   const [ivaPct, setIvaPct] = useState(21)
@@ -147,6 +155,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const porConfirmar = useRef<Operacion[]>([])
   /** Usuario actual para la lógica (se actualiza siempre a la vez que el estado «usuario») */
   const usuarioRef = useRef<Usuario | null>(null)
+  /** Clave de datos (solo en memoria mientras hay sesión). Con ella se cifra y descifra datos.sqlite. */
+  const claveDatos = useRef<Uint8Array | null>(null)
+
+  /** Abre los bytes del archivo: los descifra si están cifrados (hace falta haber entrado) */
+  const abrirBytes = useCallback(async (bytes: Uint8Array) => {
+    if (!cif.estaCifrado(bytes)) return bd.abrirBD(bytes)
+    if (!claveDatos.current) throw new Error('Los datos están cifrados: entra con tu usuario y contraseña.')
+    return bd.abrirBD(await cif.descifrar(bytes, claveDatos.current))
+  }, [])
+
+  /** Bytes para guardar: cifrados con las llaves de los usuarios activos (si ya hay clave de datos) */
+  const serializar = useCallback((d: Database): Promise<Uint8Array> => {
+    const plano = bd.exportar(d)
+    return claveDatos.current ? cif.cifrar(plano, claveDatos.current, bd.llavesParaCabecera(d)) : Promise.resolve(plano)
+  }, [])
 
   useEffect(() => {
     fs.cargarConexion().then(setConexion)
@@ -161,10 +184,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setConfig(bd.listarConfig(db.current))
     const us = bd.listarUsuarios(db.current)
     setUsuarios(us)
+    setConClave(bd.listarLlaves(db.current).filter((l) => l.titular.startsWith('u:')).map((l) => Number(l.titular.slice(2))))
     // El usuario actual al día (otro administrador puede haber cambiado su rol o desactivarlo)
     const yo = usuarioRef.current ? us.find((u) => u.id === usuarioRef.current!.id) : undefined
     if (usuarioRef.current) {
-      if (!yo || !yo.activo) { setUsuario(null); usuarioRef.current = null; setFase('sin-acceso') }
+      if (!yo || !yo.activo) {
+        setUsuario(null); usuarioRef.current = null; claveDatos.current = null
+        if (handle.current) guardarSesion(handle.current.nombre, null)
+        setAvisoAcceso('Un administrador ha desactivado o eliminado tu usuario.')
+        setFase('acceso')
+      }
       else if (yo.rol !== usuarioRef.current.rol || yo.nombre !== usuarioRef.current.nombre) { setUsuario(yo); usuarioRef.current = yo }
     }
   }, [])
@@ -191,7 +220,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const marca = await fs.marcaDe(h, 'datos.sqlite')
         if (marca !== ultimoMod.current) {
           const { datos, marca: m2 } = await fs.leerBytes(h, 'datos.sqlite')
-          const remota = await bd.abrirBD(datos)
+          const remota = await abrirBytes(datos)
           if (bd.versionEsquema(remota) < VERSION_ESQUEMA) bd.migrar(remota) // p. ej. alguien restauró una copia antigua
           // A partir de aquí, sin esperas: nadie puede añadir operaciones en medio
           const perdidas = porConfirmar.current.filter((op) => !bd.operacionAplicada(remota, op.id))
@@ -223,7 +252,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const lote = pendientes.current
             pendientes.current = []
             try {
-              ultimoMod.current = await fs.escribirBytes(h, 'datos.sqlite', bd.exportar(db.current!))
+              ultimoMod.current = await fs.escribirBytes(h, 'datos.sqlite', await serializar(db.current!))
             } catch (e) {
               pendientes.current = [...lote, ...pendientes.current]
               throw e
@@ -248,7 +277,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
     cola.current = tarea
     return tarea
-  }, [refrescar])
+  }, [refrescar, abrirBytes, serializar])
 
   /** Aplica un cambio en esta ventana al momento y lo guarda en el archivo */
   const ejecutar = useCallback(async (op: OpNueva, accion: Accion | null = 'editar'): Promise<Resultado> => {
@@ -283,13 +312,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const terminarApertura = useCallback(async (u: Usuario) => {
     setUsuario(u)
     usuarioRef.current = u
+    setAvisoAcceso('')
     const h = handle.current!
-    guardarSesion(h.nombre, u.id)
-    if (u.cambiar_clave && u.usuario) { setFase('cambiar-clave'); return }
+    guardarSesion(h.nombre, u.id, claveDatos.current)
+    if (u.cambiar_clave) { setFase('cambiar-clave'); return }
     // Copia automática: una al día, la primera vez que la abre alguien que puede escribir
     if (puedeRol(u.rol, 'editar')) {
       try {
-        await copiaDiaria(await fs.subcarpeta(h, 'backups'), bd.exportar(db.current!))
+        await copiaDiaria(await fs.subcarpeta(h, 'backups'), await serializar(db.current!))
       } catch (e) {
         console.warn('No se pudo crear la copia automática', e)
       }
@@ -297,40 +327,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refrescar()
     setGuardado({ estado: 'guardado' })
     setFase('listo')
-  }, [refrescar])
+  }, [refrescar, serializar])
 
-  /** Decide quién es el usuario: cuenta de Google (Drive) o usuario y contraseña (carpeta) */
-  const identificar = useCallback(async () => {
+  /**
+   * Con la clave de datos ya conocida: descifra el archivo, lo actualiza si es de una versión anterior y
+   * entra con el usuario indicado. Devuelve false si ese usuario no existe o está desactivado.
+   */
+  const abrirComo = useCallback(async (bytes: Uint8Array, marca: string, usuarioId: number): Promise<boolean> => {
     const h = handle.current!
-    const us = bd.listarUsuarios(db.current!)
-    if (h.tipo === 'drive') {
-      const g = await drive.usuarioGoogle()
-      setEmailGoogle(g.email)
-      if (us.length === 0) {
-        // Primera vez con control de acceso: quien abre la carpeta (su propietario) es el administrador
-        const id = idNuevo(db.current!, 'usuarios')
-        usuarioRef.current = { id, nombre: g.nombre || g.email, email: g.email, rol: 'admin' } as Usuario
-        await ejecutar({ tipo: 'usuario', registro: id, nuevo: true, datos: { nombre: g.nombre || g.email, email: g.email, usuario: null, clave_hash: null, clave_sal: null, cambiar_clave: 0, rol: 'admin', activo: 1 } }, null)
-        const yo = bd.listarUsuarios(db.current!).find((u) => u.email?.toLowerCase() === g.email)!
-        setInformeMigracion((x) => ({ ...(x ?? { desde: VERSION_ESQUEMA, hasta: VERSION_ESQUEMA, entidades: 0, fechasDeducidas: 0, cambiosTexto: [] }), usuarios: true }))
-        await terminarApertura(yo)
-        return
-      }
-      const yo = us.find((u) => u.email?.toLowerCase() === g.email)
-      if (!yo || !yo.activo) { refrescar(); setFase('sin-acceso'); return }
-      await terminarApertura(yo)
-      return
+    const nueva = await abrirBytes(bytes)
+    db.current?.close()
+    db.current = nueva
+    ultimoMod.current = marca
+    pendientes.current = []
+    porConfirmar.current = []
+    if (bd.versionEsquema(nueva) < VERSION_ESQUEMA) {
+      await crearCopia(await fs.subcarpeta(h, 'backups'), bytes, 'antes-de-actualizar')
+      const informe = bd.migrar(nueva)
+      ultimoMod.current = await fs.escribirBytes(h, 'datos.sqlite', await serializar(nueva))
+      if (informe) setInformeMigracion(informe)
     }
-    // Carpeta del ordenador o de red
-    if (us.length === 0) { setFase('primer-admin'); return }
-    if (!us.some((u) => u.usuario && u.clave_hash && u.activo)) { setFase('sin-acceso'); return }
-    const recordado = leerSesion(h.nombre)
-    const yo = recordado !== null ? us.find((u) => u.id === recordado && u.activo && u.usuario) : undefined
-    if (yo) { await terminarApertura(yo); return }
-    setFase('acceso')
-  }, [ejecutar, refrescar, terminarApertura])
+    setIvaPct(Number(bd.leerConfig(nueva, 'tipo_iva', '21')) || 21)
+    const yo = bd.listarUsuarios(nueva).find((u) => u.id === usuarioId)
+    if (!yo || !yo.activo || !yo.usuario) return false
+    refrescar()
+    await terminarApertura(yo)
+    return true
+  }, [abrirBytes, serializar, refrescar, terminarApertura])
 
-  /** Abre datos.sqlite de la carpeta, lo actualiza si es de una versión anterior e identifica al usuario */
+  /** Abre datos.sqlite de la carpeta y pide entrar (o proteger el archivo si aún no está cifrado) */
   const abrirCarpeta = useCallback(async (h: fs.Carpeta) => {
     setFase('cargando')
     setError('')
@@ -341,6 +366,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSesionCaducada(false)
       setUsuario(null)
       usuarioRef.current = null
+      claveDatos.current = null
       pendientes.current = []
       porConfirmar.current = []
       if (!(await fs.existe(h, 'datos.sqlite'))) {
@@ -348,28 +374,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return
       }
       const { datos, marca } = await fs.leerBytes(h, 'datos.sqlite')
+      if (cif.estaCifrado(datos)) {
+        // Al recargar la pestaña no se vuelve a pedir la contraseña
+        const sesion = leerSesion(h.nombre)
+        if (sesion) {
+          claveDatos.current = sesion.clave
+          try {
+            if (await abrirComo(datos, marca, sesion.id)) return
+          } catch { /* la sesión ya no vale */ }
+          claveDatos.current = null
+          guardarSesion(h.nombre, null)
+        }
+        setFase('acceso')
+        return
+      }
+      // Archivo sin proteger (de una versión anterior o recién creado): se actualiza y se pide crear el administrador
       const nueva = await bd.abrirBD(datos)
       db.current?.close()
       db.current = nueva
       ultimoMod.current = marca
-      // Archivo de una versión anterior: copia de seguridad y actualización automática
       if (bd.versionEsquema(nueva) < VERSION_ESQUEMA) {
         try {
           await crearCopia(await fs.subcarpeta(h, 'backups'), datos, 'antes-de-actualizar')
-          const informe = bd.migrar(nueva)
-          ultimoMod.current = await fs.escribirBytes(h, 'datos.sqlite', bd.exportar(nueva))
-          if (informe) setInformeMigracion(informe)
         } catch (e) {
-          throw new Error('Hay que actualizar datos.sqlite a la versión nueva y tu cuenta no puede modificar la carpeta. Ábrela primero con una cuenta de administrador. (' + (e instanceof Error ? e.message : String(e)) + ')')
+          throw new Error('Para proteger los datos hay que poder escribir en la carpeta. (' + (e instanceof Error ? e.message : String(e)) + ')')
         }
+        const informe = bd.migrar(nueva)
+        if (informe) setInformeMigracion(informe)
       }
       setIvaPct(Number(bd.leerConfig(nueva, 'tipo_iva', '21')) || 21)
+      const admin = bd.listarUsuarios(nueva).find((u) => u.rol === 'admin' && u.activo)
+      setAdminPropuesto(admin?.nombre ?? '')
       refrescar()
-      await identificar()
+      setFase('proteger')
     } catch (e) {
       fallo(e)
     }
-  }, [refrescar, identificar])
+  }, [refrescar, abrirComo])
 
   /** Abre la última carpeta usada (hay que llamarlo desde un clic) */
   const continuar = useCallback(async () => {
@@ -418,7 +459,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const cambiarCarpeta = useCallback(() => {
     // Lo que quede por guardar se intenta guardar antes de salir
-    sincronizar().catch(() => undefined)
+    sincronizar().catch(() => undefined).finally(() => { claveDatos.current = null })
+    if (handle.current) guardarSesion(handle.current.nombre, null)
     setError('')
     setUsuario(null)
     usuarioRef.current = null
@@ -434,84 +476,123 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await abrirCarpeta(h)
   }, [abrirCarpeta])
 
-  // ---------- Acceso con usuario y contraseña (carpeta de red) ----------
+  // ---------- Acceso con usuario y contraseña ----------
   const entrar = useCallback(async (nombre: string, clave: string) => {
-    await sincronizar().catch(() => undefined) // por si un administrador acaba de cambiar los usuarios
-    const u = bd.listarUsuarios(db.current!).find((x) => x.usuario?.toLowerCase() === normalizarUsuario(nombre))
-    const ok = u && u.activo ? await claveCorrecta(clave, u.clave_hash, u.clave_sal) : false
-    if (!u || !ok) {
-      await new Promise((r) => setTimeout(r, 600)) // frena los intentos repetidos
-      throw new Error(u && !u.activo ? 'Este usuario está desactivado. Habla con un administrador.' : 'Usuario o contraseña incorrectos.')
+    const h = handle.current
+    if (!h) throw new Error('No hay ninguna carpeta abierta.')
+    const { datos, marca } = await fs.leerBytes(h, 'datos.sqlite') // siempre el archivo al día
+    const r = await cif.entrarCon(datos, normalizarUsuario(nombre), clave)
+    if (!r) {
+      await pausa(500) // frena los intentos repetidos
+      throw new Error('Usuario o contraseña incorrectos.')
     }
-    await terminarApertura(u)
-  }, [terminarApertura, sincronizar])
+    claveDatos.current = r.claveDatos
+    if (!(await abrirComo(datos, marca, Number(r.titular.slice(2))))) {
+      claveDatos.current = null
+      throw new Error('Este usuario está desactivado. Habla con un administrador.')
+    }
+  }, [abrirComo])
 
   const salir = useCallback(() => {
-    sincronizar().catch(() => undefined)
-    if (handle.current) guardarSesion(handle.current.nombre, null)
+    const h = handle.current
+    // Lo pendiente se guarda antes de olvidar la clave
+    sincronizar().catch(() => undefined).finally(() => {
+      claveDatos.current = null
+      db.current?.close()
+      db.current = null
+    })
+    if (h) guardarSesion(h.nombre, null)
     // El siguiente usuario empieza en el listado, no en la última pantalla del anterior
     if (location.hash && location.hash !== '#/') location.hash = '#/'
     setUsuario(null)
     usuarioRef.current = null
-    if (handle.current?.tipo === 'drive') {
-      drive.cerrarSesion()
-      setFase('inicio')
-    } else {
-      setFase('acceso')
-    }
+    setRegistros([]); setEntidades([]); setUsuarios([])
+    setAvisoAcceso('')
+    setFase('acceso')
   }, [sincronizar])
 
+  /** Crea un código de recuperación nuevo (el anterior deja de valer) y lo muestra una vez */
   const guardarRecuperacion = useCallback(async (): Promise<string> => {
     const codigo = nuevoCodigoRecuperacion()
-    const c = await cifrarClave(normalizarCodigo(codigo))
-    await ejecutar({ tipo: 'config', clave: CLAVE_RECUPERACION, valor: `${c.clave_sal}:${c.clave_hash}` }, null)
+    const ll = await cif.envolver(claveDatos.current!, normalizarCodigo(codigo), 'recuperacion', '')
+    await ejecutar({ tipo: 'llave', titular: 'recuperacion', llave: llaveDeFila(ll) }, null)
     setCodigoRecuperacion(codigo)
     return codigo
   }, [ejecutar])
 
-  const crearPrimerAdmin = useCallback(async (d: { nombre: string; usuario: string; clave: string }) => {
-    await sincronizar().catch(() => undefined) // por si un administrador acaba de cambiar los usuarios
-    if (bd.listarUsuarios(db.current!).length) throw new Error('Ya hay usuarios: entra con el tuyo.')
-    const p = problemaClave(d.clave)
-    if (p) throw new Error(p)
+  /** Protege un archivo sin cifrar: crea el administrador con contraseña y cifra los datos */
+  const proteger = useCallback(async (d: { nombre: string; usuario: string; clave: string }) => {
+    if (!db.current) throw new Error('No hay datos abiertos.')
+    if (!d.nombre.trim()) throw new Error('Escribe tu nombre.')
     const usuarioN = normalizarUsuario(d.usuario)
     if (!usuarioN) throw new Error('Escribe un nombre de usuario.')
-    const id = idNuevo(db.current!, 'usuarios')
-    usuarioRef.current = { id, nombre: d.nombre, usuario: usuarioN, rol: 'admin' } as Usuario
-    await ejecutar({ tipo: 'usuario', registro: id, nuevo: true, datos: { nombre: d.nombre.trim(), email: null, usuario: usuarioN, ...(await cifrarClave(d.clave)), cambiar_clave: 0, rol: 'admin', activo: 1 } }, null)
-    const codigo = await guardarRecuperacion()
-    const yo = bd.listarUsuarios(db.current!).find((u) => u.usuario === usuarioN)!
-    await terminarApertura(yo)
-    return codigo
-  }, [ejecutar, guardarRecuperacion, terminarApertura, sincronizar])
+    const p = problemaClave(d.clave)
+    if (p) throw new Error(p)
+    const lista = bd.listarUsuarios(db.current)
+    if (lista.some((u) => u.usuario?.toLowerCase() === usuarioN && !(u.rol === 'admin' && u.activo))) throw new Error('Ya hay otro usuario con ese nombre de usuario.')
+    claveDatos.current = cif.nuevaClaveDatos()
+    // Si ya había un administrador (de la versión anterior), se completa ese; si no, se crea
+    const existente = lista.find((u) => u.rol === 'admin' && u.activo && (!u.usuario || u.usuario.toLowerCase() === usuarioN))
+    const id = existente?.id ?? idNuevo(db.current, 'usuarios')
+    usuarioRef.current = { id, nombre: d.nombre.trim(), usuario: usuarioN, rol: 'admin' } as Usuario
+    const ll = await cif.envolver(claveDatos.current, d.clave, `u:${id}`, usuarioN)
+    try {
+      await ejecutar({
+        tipo: 'usuario', registro: id, nuevo: !existente, llave: llaveDeFila(ll),
+        datos: { nombre: d.nombre.trim(), email: existente?.email ?? null, usuario: usuarioN, clave_hash: null, clave_sal: null, cambiar_clave: 0, rol: 'admin', activo: 1 },
+      }, null)
+      const codigo = await guardarRecuperacion()
+      // Comprueba que el archivo ha quedado cifrado y que la contraseña lo abre
+      const { datos } = await fs.leerBytes(handle.current!, 'datos.sqlite')
+      if (!cif.estaCifrado(datos) || !(await cif.entrarCon(datos, usuarioN, d.clave))) throw new Error('No se pudo guardar el archivo cifrado. Vuelve a intentarlo.')
+      // La copia de seguridad que había (sin cifrar) se sustituye por una cifrada
+      await crearCopia(await fs.subcarpeta(handle.current!, 'backups'), datos, 'protegido')
+      const yo = bd.listarUsuarios(db.current).find((u) => u.usuario?.toLowerCase() === usuarioN)!
+      setInformeMigracion((x) => (x ? { ...x, usuarios: true } : { desde: VERSION_ESQUEMA, hasta: VERSION_ESQUEMA, entidades: 0, fechasDeducidas: 0, cambiosTexto: [], usuarios: true }))
+      await terminarApertura(yo)
+      return codigo
+    } catch (e) {
+      claveDatos.current = null
+      usuarioRef.current = null
+      throw e
+    }
+  }, [ejecutar, guardarRecuperacion, terminarApertura])
 
   const recuperarClave = useCallback(async (nombre: string, codigo: string, nueva: string) => {
-    await sincronizar().catch(() => undefined) // por si un administrador acaba de cambiar los usuarios
-    const u = bd.listarUsuarios(db.current!).find((x) => x.usuario?.toLowerCase() === normalizarUsuario(nombre))
-    const guardadoRec = bd.leerConfig(db.current!, CLAVE_RECUPERACION, '')
-    const [sal, hash] = guardadoRec.split(':')
-    const ok = !!u && u.rol === 'admin' && !!u.activo && await claveCorrecta(normalizarCodigo(codigo), hash ?? null, sal ?? null)
-    if (!ok) {
-      await new Promise((r) => setTimeout(r, 600))
-      throw new Error('El código de recuperación no es válido para ese usuario. Solo sirve para administradores.')
-    }
+    const h = handle.current
+    if (!h) throw new Error('No hay ninguna carpeta abierta.')
     const p = problemaClave(nueva)
     if (p) throw new Error(p)
-    usuarioRef.current = u!
-    await ejecutar({ tipo: 'usuario', registro: u!.id, datos: { ...u!, ...(await cifrarClave(nueva)), cambiar_clave: 0 } }, null)
-    const codigoNuevo = await guardarRecuperacion() // el código usado deja de valer
-    await terminarApertura(bd.listarUsuarios(db.current!).find((x) => x.id === u!.id)!)
-    return codigoNuevo
-  }, [ejecutar, guardarRecuperacion, terminarApertura, sincronizar])
+    const { datos, marca } = await fs.leerBytes(h, 'datos.sqlite')
+    const clave = await cif.entrarConCodigo(datos, normalizarCodigo(codigo))
+    if (!clave) { await pausa(500); throw new Error('El código de recuperación no es válido.') }
+    claveDatos.current = clave
+    const tmp = await abrirBytes(datos)
+    const u = bd.listarUsuarios(tmp).find((x) => x.usuario?.toLowerCase() === normalizarUsuario(nombre) && x.rol === 'admin' && x.activo)
+    tmp.close()
+    if (!u) { claveDatos.current = null; throw new Error('El código solo sirve para un usuario administrador activo. Revisa el nombre de usuario.') }
+    // Entra como ese administrador, le pone la contraseña nueva y renueva el código (el usado deja de valer)
+    if (!(await abrirComo(datos, marca, u.id))) { claveDatos.current = null; throw new Error('No se pudo entrar con ese usuario.') }
+    const ll = await cif.envolver(clave, nueva, `u:${u.id}`, u.usuario!.toLowerCase())
+    await ejecutar({ tipo: 'usuario', registro: u.id, llave: llaveDeFila(ll), datos: { ...u, cambiar_clave: 0 } }, null)
+    const yo = bd.listarUsuarios(db.current!).find((x) => x.id === u.id)!
+    setUsuario(yo); usuarioRef.current = yo
+    guardarSesion(h.nombre, yo.id, clave)
+    setFase('listo')
+    return guardarRecuperacion()
+  }, [abrirBytes, abrirComo, ejecutar, guardarRecuperacion])
 
   const cambiarMiClave = useCallback(async (actual: string, nueva: string) => {
     const u = bd.listarUsuarios(db.current!).find((x) => x.id === usuarioRef.current?.id)
-    if (!u) throw new Error('No hay ningún usuario con la sesión iniciada.')
-    if (!(await claveCorrecta(actual, u.clave_hash, u.clave_sal))) throw new Error('La contraseña actual no es correcta.')
+    if (!u || !claveDatos.current) throw new Error('No hay ningún usuario con la sesión iniciada.')
+    const mia = bd.listarLlaves(db.current!).find((l) => l.titular === `u:${u.id}`)
+    const ok = mia ? await cif.desenvolver({ t: mia.titular, u: '', s: mia.sal, i: mia.iv, k: mia.envoltorio }, actual) : null
+    if (!ok) throw new Error('La contraseña actual no es correcta.')
     const p = problemaClave(nueva)
     if (p) throw new Error(p)
     if (actual === nueva) throw new Error('La contraseña nueva debe ser distinta de la actual.')
-    await ejecutar({ tipo: 'usuario', registro: u.id, datos: { ...u, ...(await cifrarClave(nueva)), cambiar_clave: 0 } }, null)
+    const ll = await cif.envolver(claveDatos.current, nueva, `u:${u.id}`, (u.usuario ?? '').toLowerCase())
+    await ejecutar({ tipo: 'usuario', registro: u.id, llave: llaveDeFila(ll), datos: { ...u, cambiar_clave: 0 } }, null)
     const yo = bd.listarUsuarios(db.current!).find((x) => x.id === u.id)!
     if (fase === 'cambiar-clave') await terminarApertura(yo)
     else { setUsuario(yo); usuarioRef.current = yo }
@@ -523,44 +604,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [guardarRecuperacion])
 
   // ---------- Mantenimiento de usuarios (administradores) ----------
-  /** Da de alta o modifica un usuario. Devuelve un aviso si no se pudo ajustar el permiso de la carpeta de Drive. */
+  /** Da de alta o modifica un usuario */
   const guardarUsuario = useCallback(async (d: DatosUsuarioForm, id?: number): Promise<string | null> => {
     if (!puedeRol(usuarioRef.current?.rol, 'administrar')) throw new SinPermisoError('administrar')
     const lista = bd.listarUsuarios(db.current!)
     const antes = id !== undefined ? lista.find((u) => u.id === id) : undefined
-    const email = d.email.trim().toLowerCase() || null
-    const usuarioN = normalizarUsuario(d.usuario) || null
+    const usuarioN = normalizarUsuario(d.usuario)
+    const tieneLlave = id !== undefined && bd.listarLlaves(db.current!).some((l) => l.titular === `u:${id}`)
     if (!d.nombre.trim()) throw new Error('Escribe el nombre.')
-    if (!email && !usuarioN) throw new Error('Indica una cuenta de Google, un nombre de usuario o los dos.')
-    if (usuarioN && !antes?.clave_hash && !d.clave) throw new Error('Para entrar con usuario y contraseña, escribe una contraseña inicial.')
+    if (!usuarioN) throw new Error('Escribe el nombre de usuario con el que entrará.')
+    if (lista.some((u) => u.id !== id && u.usuario?.toLowerCase() === usuarioN)) throw new Error('Ya hay otro usuario con ese nombre de usuario.')
+    if (!tieneLlave && !d.clave) throw new Error('Escribe una contraseña inicial.')
     if (d.clave) { const p = problemaClave(d.clave); if (p) throw new Error(p) }
     // Que siempre quede al menos un administrador activo
     const quedanAdmins = lista.filter((u) => u.id !== id && u.rol === 'admin' && u.activo).length
     if (antes?.rol === 'admin' && antes.activo && (d.rol !== 'admin' || !d.activo) && quedanAdmins === 0) throw new Error('Tiene que quedar al menos un administrador activo.')
     if (id === usuarioRef.current?.id && !d.activo) throw new Error('No puedes desactivar tu propio usuario.')
-    const clave = d.clave ? await cifrarClave(d.clave) : { clave_hash: antes?.clave_hash ?? null, clave_sal: antes?.clave_sal ?? null }
     const datos: bd.DatosUsuario = {
-      nombre: d.nombre.trim(), email, usuario: usuarioN, ...clave,
+      nombre: d.nombre.trim(), email: antes?.email ?? null, usuario: usuarioN, clave_hash: null, clave_sal: null,
       // Una contraseña puesta por un administrador se cambia al entrar (salvo la propia)
       cambiar_clave: d.clave && id !== usuarioRef.current?.id ? 1 : antes?.cambiar_clave ?? 0,
       rol: d.rol, activo: d.activo ? 1 : 0,
     }
     const registro = id ?? idNuevo(db.current!, 'usuarios')
-    await ejecutar({ tipo: 'usuario', registro, nuevo: id === undefined, datos }, 'administrar')
-    if (handle.current?.tipo !== 'drive') return null
-    // Con Google Drive, el rol se refleja en el permiso de la carpeta: lector (consulta) o editor
-    const carpetaId = (handle.current as drive.CarpetaDrive).id
-    const avisos: string[] = []
-    try {
-      if (antes?.email && antes.email.toLowerCase() !== email) await drive.ajustarPermisoCarpeta(carpetaId, antes.email, null)
-      if (email) {
-        await drive.ajustarPermisoCarpeta(carpetaId, email, d.activo ? permisoDrive(d.rol) : null,
-          `Te han dado acceso a GESTCON (${d.rol === 'consulta' ? 'consulta' : d.rol === 'edicion' ? 'edición' : 'administración'}). Abre la aplicación y conecta con Google Drive.`)
-      }
-    } catch (e) {
-      avisos.push(`El usuario se ha guardado, pero no se pudo ajustar el permiso de la carpeta en Google Drive (${e instanceof Error ? e.message : String(e)}). Compártela a mano con ${email} como ${d.rol === 'consulta' ? 'lector' : 'editor'}.`)
-    }
-    return avisos[0] ?? null
+    const llave = d.clave ? llaveDeFila(await cif.envolver(claveDatos.current!, d.clave, `u:${registro}`, usuarioN)) : undefined
+    await ejecutar({ tipo: 'usuario', registro, nuevo: id === undefined, datos, llave }, 'administrar')
+    return null
   }, [ejecutar])
 
   const borrarUsuario = useCallback(async (id: number): Promise<string | null> => {
@@ -571,13 +640,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (id === usuarioRef.current?.id) throw new Error('No puedes eliminar tu propio usuario.')
     if (u.rol === 'admin' && u.activo && lista.filter((x) => x.rol === 'admin' && x.activo).length <= 1) throw new Error('Tiene que quedar al menos un administrador activo.')
     await ejecutar({ tipo: 'usuario', registro: id, datos: null }, 'administrar')
-    if (handle.current?.tipo === 'drive' && u.email) {
-      try {
-        await drive.ajustarPermisoCarpeta((handle.current as drive.CarpetaDrive).id, u.email, null)
-      } catch (e) {
-        return `Usuario eliminado, pero no se pudo quitar su permiso en Google Drive (${e instanceof Error ? e.message : String(e)}). Quítalo a mano en «Compartir» de la carpeta.`
-      }
-    }
     return null
   }, [ejecutar])
 
@@ -612,8 +674,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const copiaAhora = useCallback(async (motivo = 'manual') => {
     if (!handle.current || !db.current) return
     if (!puedeRol(usuarioRef.current?.rol, motivo === 'manual' ? 'administrar' : 'editar')) throw new SinPermisoError('administrar')
-    await crearCopia(await fs.subcarpeta(handle.current, 'backups'), bd.exportar(db.current), motivo)
-  }, [])
+    await crearCopia(await fs.subcarpeta(handle.current, 'backups'), await serializar(db.current), motivo)
+  }, [serializar])
 
   const restaurar = useCallback(async (nombre: string) => {
     const h = handle.current
@@ -622,12 +684,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await sincronizar().catch(() => undefined)
     const dirB = await fs.subcarpeta(h, 'backups')
     const bytes = await leerCopia(dirB, nombre)
-    const prueba = await bd.abrirBD(bytes) // valida antes de tocar nada
-    prueba.close()
-    await crearCopia(dirB, bd.exportar(db.current), 'antes-de-restaurar')
-    await fs.escribirBytes(h, 'datos.sqlite', bytes)
-    await abrirCarpeta(h)
-  }, [abrirCarpeta, sincronizar])
+    const copia = await abrirBytes(bytes) // valida antes de tocar nada
+    if (bd.versionEsquema(copia) < VERSION_ESQUEMA) bd.migrar(copia)
+    // Se recuperan los datos, pero no los usuarios ni las contraseñas de entonces: el acceso sigue como ahora
+    bd.copiarAcceso(db.current, copia)
+    await crearCopia(dirB, await serializar(db.current), 'antes-de-restaurar')
+    ultimoMod.current = await fs.escribirBytes(h, 'datos.sqlite', await serializar(copia))
+    db.current.close()
+    db.current = copia
+    pendientes.current = []
+    porConfirmar.current = []
+    refrescar()
+  }, [abrirBytes, serializar, sincronizar, refrescar])
 
   // Aviso al cerrar si queda algo por guardar
   useEffect(() => {
@@ -644,15 +712,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     fase, error, nombreCarpeta, registros, entidades, informeMigracion, cerrarInforme: () => setInformeMigracion(null), guardado, ivaPct, config, dirRaiz, sesionCaducada,
     carpetaGuardada: conexion ? { tipo: conexion.tipo, nombre: conexion.nombre } : null,
     origen: dirRaiz?.tipo ?? null,
-    usuario, usuarios, emailGoogle, puede, remap, ultimaSincronizacion, codigoRecuperacion, cerrarCodigo: () => setCodigoRecuperacion(null),
+    usuario, usuarios, conClave, avisoAcceso, adminPropuesto, puede, remap, ultimaSincronizacion, codigoRecuperacion, cerrarCodigo: () => setCodigoRecuperacion(null),
     continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar, crearBDVacia,
-    entrar, salir, crearPrimerAdmin, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,
+    entrar, salir, proteger, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,
     crear, actualizar, eliminar, guardarConfig, sincronizarAhora,
     listarCopias: listar, copiaAhora, restaurar,
   }), [fase, error, conexion, nombreCarpeta, registros, entidades, informeMigracion, guardado, ivaPct, config, dirRaiz, sesionCaducada,
-    usuario, usuarios, emailGoogle, puede, remap, ultimaSincronizacion, codigoRecuperacion,
+    usuario, usuarios, conClave, avisoAcceso, adminPropuesto, puede, remap, ultimaSincronizacion, codigoRecuperacion,
     continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar, crearBDVacia,
-    entrar, salir, crearPrimerAdmin, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,
+    entrar, salir, proteger, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,
     crear, actualizar, eliminar, guardarConfig, sincronizarAhora, listar, copiaAhora, restaurar])
 
   return <StoreCtx.Provider value={valor}>{children}</StoreCtx.Provider>

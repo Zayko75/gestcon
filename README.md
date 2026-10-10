@@ -3,7 +3,7 @@
 Aplicación web para registrar los patrocinios deportivos y generar sus documentos Word (anexos, contrato e informes). Sustituye a la base de datos Access `GESTCON.accdb`.
 
 - **Sin servidor**: todo se ejecuta en el navegador. Los datos viven en un archivo SQLite dentro de una carpeta que la aplicación lee y escribe directamente: una carpeta de **Google Drive** o una carpeta del ordenador o de la red.
-- **Varios usuarios a la vez, con roles**: cada persona entra con su cuenta (Google en Drive; usuario y contraseña en una carpeta de red) y tiene un rol: consulta, edición o administración. Los cambios de cada uno se combinan al guardar y la aplicación recoge sola los de los demás cada pocos segundos.
+- **Varios usuarios a la vez, con roles**: cada persona entra con su usuario y contraseña y tiene un rol: consulta, edición o administración. Los datos se guardan cifrados. Los cambios de cada uno se combinan al guardar y la aplicación recoge sola los de los demás cada pocos segundos.
 - **Navegador**: con Google Drive, cualquier navegador moderno. Con una carpeta del ordenador o de red, Google Chrome o Microsoft Edge en un ordenador.
 
 Los datos y las plantillas **no están en este repositorio**: el repositorio solo contiene el código de la aplicación. Con Google Drive, el navegador habla directamente con Google; no hay ningún servidor intermedio.
@@ -95,7 +95,7 @@ Patrocinios/
 - La primera vez conecta con Google Drive (Parte 2) o pulsa **Elegir carpeta** y selecciona la carpeta `Patrocinios` del ordenador (Parte 3).
 - Las siguientes veces pulsa **Continuar con «Patrocinios»** y confirma la cuenta de Google o el permiso de la carpeta.
 - **Cambiar carpeta** (arriba a la derecha) vuelve a la pantalla de conexión.
-- Después hay que identificarse: con Drive, la cuenta de Google; con una carpeta de red, usuario y contraseña (Parte 5).
+- Después se entra con usuario y contraseña de GESTCON (Parte 5).
 - La primera vez que alguien con permiso de edición abre la aplicación cada día se crea una copia de seguridad automática, que sustituye a la anterior.
 - Si el `datos.sqlite` es de una versión anterior, la aplicación lo actualiza sola (antes guarda una copia en `backups/`) y muestra un resumen de lo que ha cambiado.
 
@@ -156,20 +156,24 @@ Patrocinios/
 | **Edición** | Además, crear, modificar, duplicar y renovar patrocinios, y generar documentos. |
 | **Administración** | Además, eliminar patrocinios, fijar créditos y el límite del contrato menor, gestionar usuarios y copias de seguridad. |
 
-**La primera vez.** Al abrir la carpeta con esta versión, la aplicación actualiza `datos.sqlite` (con copia previa) y pide un administrador:
-- **En Google Drive**, la cuenta que la abre (la propietaria de la carpeta) queda como administradora automáticamente.
-- **En una carpeta de red**, aparece *Crea el administrador*: nombre, usuario y contraseña. Después se muestra un **código de recuperación**: apúntalo y guárdalo fuera de la carpeta. Sirve para poner una contraseña nueva a un administrador que la olvide (*¿Has olvidado la contraseña?* en la pantalla de entrada).
+**Cómo se entra.** Siempre con **usuario y contraseña de GESTCON**, tanto si los datos están en Google Drive como en una carpeta de red.
+1. En cada ordenador, la primera vez, se conecta la carpeta: con Google Drive (con una cuenta de Google que tenga acceso a la carpeta, por ejemplo la del servicio) o eligiendo la carpeta de red. Si Google muestra «Google no ha verificado esta aplicación», pulsa **Configuración avanzada → Ir a GESTCON**: solo ocurre esa vez.
+2. Después, cada persona escribe su usuario y contraseña. Al recargar la pestaña no se vuelve a pedir; al pulsar *Cerrar sesión* o cerrar la pestaña, sí.
 
-**Dar de alta.** En *Usuarios* → *Nuevo usuario*: nombre, rol y cómo entra:
-- **Cuenta de Google** (datos en Drive). Al guardar, la aplicación comparte la carpeta con esa cuenta: como *lector* si es de consulta y como *editor* si puede modificar, así que un usuario de consulta no puede cambiar el archivo ni desde Drive. La persona recibe un correo de Google. La primera vez que entre, Google le mostrará «Google no ha verificado esta aplicación»: debe pulsar **Configuración avanzada → Ir a GESTCON**. Mientras la aplicación no esté verificada por Google, pueden usarla hasta 100 cuentas distintas.
-- **Usuario y contraseña** (datos en una carpeta de red). La contraseña que pones es provisional: la persona la cambia al entrar por primera vez. Las contraseñas se guardan cifradas (PBKDF2), nunca tal cual.
-- Se pueden indicar las dos cosas para la misma persona.
+**La primera vez con esta versión.** La aplicación actualiza `datos.sqlite` (con copia previa) y muestra *Protege los datos*: escribe tu nombre, usuario y contraseña de administrador. A partir de ese momento el archivo queda **cifrado**. Después se muestra un **código de recuperación**: apúntalo y guárdalo fuera de la carpeta.
 
-**Cambiar o quitar el acceso.** Pulsa el usuario en la lista: cambia su rol, desmárcale *Activo* o elimínalo. En Drive, el permiso de la carpeta se ajusta solo. Los cambios llegan a quien esté trabajando en unos segundos, sin que tenga que recargar. Siempre queda al menos un administrador activo, y nadie puede desactivarse a sí mismo.
+**Datos cifrados.** `datos.sqlite` (y su copia de seguridad) se guarda cifrado (AES-256). La clave del archivo solo se puede abrir con la contraseña de un usuario activo o con el código de recuperación, así que nadie puede leer los datos sin entrar en GESTCON, aunque abra la carpeta. Las plantillas y los documentos Word generados no se cifran.
+> **Importante:** si se perdieran todas las contraseñas de administrador **y** el código de recuperación, los datos no se podrían recuperar. Guarda el código en un lugar seguro.
+
+**Dar de alta.** En *Usuarios* → *Nuevo usuario*: nombre, usuario, una contraseña provisional y el rol. La persona entra con esa contraseña y la aplicación le pide cambiarla por una suya. Los usuarios de la versión anterior que no tenían usuario aparecen como «Sin usuario»: ábrelos y ponles usuario y contraseña.
+
+**Cambiar o quitar el acceso.** Pulsa el usuario en la lista: cambia su rol, ponle una contraseña nueva (si la ha olvidado), desmárcale *Activo* o elimínalo. Un usuario desactivado o eliminado deja de poder descifrar los datos. Los cambios llegan a quien esté trabajando en unos segundos. Siempre queda al menos un administrador activo, y nadie puede desactivarse a sí mismo.
+
+**Olvidé la contraseña.** Un usuario normal: un administrador le pone una nueva en *Usuarios*. Un administrador: *¿Has olvidado la contraseña?* en la pantalla de entrada, con el código de recuperación (después se genera otro). En *Usuarios* se puede generar un código nuevo en cualquier momento; el anterior deja de valer.
+
+**Restaurar una copia** recupera los datos, pero no los usuarios ni las contraseñas de entonces: el acceso sigue como está.
 
 **Cerrar sesión / cambiar contraseña.** Abajo en el menú lateral (en móvil, arriba).
-
-> **Seguridad sin servidor.** Con Google Drive, la protección es real: los permisos los aplica Google. En una carpeta de red, el control de acceso lo aplica la aplicación; para que un usuario de consulta tampoco pueda modificar `datos.sqlite` por fuera de ella, dale permiso de **solo lectura** sobre la carpeta en la unidad de red.
 
 ## Parte 6 · Modificar las plantillas
 
@@ -194,9 +198,9 @@ La lista de etiquetas, qué contiene cada una y cuáles usa cada plantilla está
 | «Falta la plantilla … en la carpeta plantillas» | Copia ese archivo a `plantillas/` con el nombre exacto. |
 | El documento sale con huecos | Rellena en la ficha los datos que indica el aviso «Sin rellenar». |
 | «El archivo no es una base de datos de GESTCON» | `datos.sqlite` no es el archivo correcto o está dañado: restaura una copia de `backups/` (cámbiale el nombre a `datos.sqlite`). |
-| «Sin acceso» al entrar con Google | Esa cuenta no está dada de alta o está desactivada: un administrador debe darla de alta en *Usuarios*. |
-| No encuentro la carpeta con otra cuenta de Google | La carpeta no está compartida con esa cuenta: dala de alta en *Usuarios* (se comparte sola) o compártela en Drive. |
-| Un administrador olvidó su contraseña (carpeta de red) | *¿Has olvidado la contraseña?* con el código de recuperación. Si se perdió, otro administrador puede asignarle una nueva en *Usuarios*. |
+| «Usuario o contraseña incorrectos» | Revisa el usuario y la contraseña. Si el usuario está desactivado, también sale este mensaje: un administrador debe activarlo. |
+| No encuentro la carpeta con otra cuenta de Google | Esa cuenta no tiene acceso a la carpeta: compártela en Drive con esa cuenta (o usa la cuenta del servicio). |
+| Un administrador olvidó su contraseña | *¿Has olvidado la contraseña?* con el código de recuperación. Si se perdió, otro administrador puede asignarle una nueva en *Usuarios*. |
 | Un error al generar un documento | Comprueba que la plantilla no tiene llaves `{ }` sueltas ni etiquetas partidas por cambios de formato. |
 
 ## Desarrollo
@@ -222,7 +226,8 @@ src/
 │   ├── db.ts                   SQLite con sql.js
 │   ├── store.tsx               estado, identidad, guardado y sincronización entre usuarios
 │   ├── operaciones.ts          cambios como operaciones: combinar y comprobar que no se pierden
-│   ├── acceso.ts               roles, permisos y contraseñas (PBKDF2)
+│   ├── acceso.ts               roles, permisos y reglas de contraseñas
+│   ├── cifrado.ts              cifrado de datos.sqlite (AES-GCM) y llaves por usuario (PBKDF2)
 │   ├── backups.ts              copia de seguridad (se conserva una sola)
 │   ├── documentos.ts           docxtemplater + PizZip, nombres de archivo, datos de las plantillas
 │   ├── format.ts               importes, fechas y campaña
@@ -241,15 +246,16 @@ Pila: React 18, Vite, Tailwind CSS, TypeScript, [sql.js](https://sql.js.org), [d
 
 ### Base de datos
 
-`datos.sqlite` (esquema versión 3) tiene:
+`datos.sqlite` (esquema versión 4) se guarda cifrado: `GESTCON1` + cabecera con las llaves de los usuarios activos (la clave del archivo envuelta con la contraseña de cada uno, PBKDF2-SHA256 + AES-GCM) + la base de datos cifrada con AES-256-GCM. Dentro tiene:
 - `patrocinios`: un registro por expediente. La clave es `id`; `num_contrato` se reinicia cada año y puede repetirse. Guarda su propia copia de los datos de la entidad, el estado, las fechas de inicio y fin, el tipo de IVA y los importes en letra.
 - `entidades`: una por CIF (agrupado sin espacios ni guiones, sin modificar cómo está escrito), con los datos de su patrocinio más reciente.
-- `usuarios`: nombre, cuenta de Google y/o usuario con la contraseña cifrada (PBKDF2-SHA256 con sal), rol y si está activo.
+- `usuarios`: nombre, usuario, rol, si está activo y si debe cambiar la contraseña. Las contraseñas no se guardan.
+- `llaves`: la llave de cada usuario y la del código de recuperación (de aquí se copian a la cabecera al guardar).
 - `operaciones`: el identificador de cada cambio guardado en los últimos 30 días. Al trabajar varios a la vez, sirve para detectar un cambio que se haya perdido (dos personas escribiendo en el mismo instante) y volver a aplicarlo.
 - `patrocinios.creado_por` y `modificado_por`: quién creó y quién modificó por última vez cada patrocinio.
-- `configuracion`: versión del esquema, tipo de IVA por defecto, crédito de cada aplicación presupuestaria (`credito:<aplicación>`), límite del contrato menor (`limite_contrato_menor`, 15.000 € sin IVA si no se indica) y el código de recuperación cifrado (`recuperacion`).
+- `configuracion`: versión del esquema, tipo de IVA por defecto, crédito de cada aplicación presupuestaria (`credito:<aplicación>`), límite del contrato menor (`limite_contrato_menor`, 15.000 € sin IVA si no se indica).
 
-Reglas en la base de datos: importes no negativos, anualidad entre 2000 y 2100, fechas AAAA-MM-DD válidas, fin del evento no anterior al inicio, y fecha de modificación automática. Las actualizaciones desde las versiones 1 y 2 están en `src/lib/db.ts` (`migrar`). El esquema completo está en [`docs/esquema.sql`](docs/esquema.sql).
+Reglas en la base de datos: importes no negativos, anualidad entre 2000 y 2100, fechas AAAA-MM-DD válidas, fin del evento no anterior al inicio, y fecha de modificación automática. Las actualizaciones desde las versiones 1, 2 y 3 están en `src/lib/db.ts` (`migrar`). El esquema completo está en [`docs/esquema.sql`](docs/esquema.sql).
 
 ## Origen
 

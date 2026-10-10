@@ -12,7 +12,10 @@ export type Operacion = { id: string; autor: string } & (
   | { tipo: 'actualizar'; registro: number; cambios: Partial<DatosPatrocinio> }
   | { tipo: 'eliminar'; registro: number }
   | { tipo: 'config'; clave: string; valor: string | null }
-  | { tipo: 'usuario'; registro: number; datos: bd.DatosUsuario | null; nuevo?: boolean }
+  /** Alta, cambio o baja de un usuario. «llave»: su llave nueva (contraseña nueva); sin ella, la llave no cambia. */
+  | { tipo: 'usuario'; registro: number; datos: bd.DatosUsuario | null; nuevo?: boolean; llave?: Omit<bd.FilaLlave, 'titular'> }
+  /** Llave del código de recuperación */
+  | { tipo: 'llave'; titular: string; llave: Omit<bd.FilaLlave, 'titular'> | null }
 )
 
 export interface Resultado {
@@ -71,14 +74,18 @@ export function aplicar(db: Database, op: Operacion): Resultado {
         bd.escribirConfig(db, op.clave, op.valor)
         break
       case 'usuario': {
-        if (op.datos === null) { bd.borrarUsuario(db, op.registro); break }
+        if (op.datos === null) { bd.borrarUsuario(db, op.registro); bd.guardarLlave(db, `u:${op.registro}`, null); break }
         const existe = bd.listarUsuarios(db).some((u) => u.id === op.registro)
         if (!op.nuevo && !existe) { r = { error: 'Otro administrador ha eliminado este usuario.' }; break }
-        // Un alta nueva cuyo id ya ha usado otro administrador recibe otro id
+        // Un alta nueva cuyo id ya ha usado otro administrador recibe otro id (y su llave va con el id nuevo)
         const id = bd.guardarUsuario(db, op.datos, op.nuevo && existe ? undefined : op.registro)
+        if (op.llave) bd.guardarLlave(db, `u:${id}`, op.llave)
         if (id !== op.registro) r = { nuevoId: id }
         break
       }
+      case 'llave':
+        bd.guardarLlave(db, op.titular, op.llave)
+        break
     }
     if (r.error) { db.exec('ROLLBACK TO op'); db.exec('RELEASE op'); return r }
     const registro = 'registro' in op ? (r.nuevoId ?? op.registro) : null

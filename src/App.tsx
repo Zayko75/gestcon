@@ -37,8 +37,9 @@ function DialogoActualizacion() {
           <li>Estado del expediente por fases y tipo de IVA en cada patrocinio.</li>
         </>}
         {inf.usuarios && <>
-          <li>Control de acceso: cada persona entra con su usuario y un rol (consulta, edición o administración). <strong>Tú eres el administrador</strong>: da de alta al resto en <a className="font-semibold text-indigo underline" href="#/usuarios" onClick={cerrarInforme}>Usuarios</a>.</li>
-          <li>Varios usuarios pueden trabajar a la vez: los cambios de cada uno se combinan al guardar y cada patrocinio indica quién lo modificó por última vez.</li>
+          <li>Los datos están <strong>protegidos</strong>: se entra con usuario y contraseña y el archivo queda cifrado, así que nadie puede leerlo sin una cuenta de GESTCON.</li>
+          <li>Tú eres el administrador: da de alta al resto en <a className="font-semibold text-indigo underline" href="#/usuarios" onClick={cerrarInforme}>Usuarios</a>, con su usuario, una contraseña provisional y su rol.</li>
+          <li>Varios usuarios pueden trabajar a la vez: los cambios de cada uno se combinan al guardar.</li>
         </>}
       </ul>
       {inf.cambiosTexto.length > 0 && (
@@ -69,7 +70,7 @@ function Contenido() {
     const nuevo = m ? remap[Number(m[1])] : undefined
     if (nuevo !== undefined) location.replace(`#/registro/${nuevo}`)
   }, [ruta, remap])
-  if (fase === 'acceso' || fase === 'primer-admin' || fase === 'sin-acceso' || fase === 'cambiar-clave') return <><PantallaAcceso /><DialogoCodigo /></>
+  if (fase === 'acceso' || fase === 'proteger' || fase === 'cambiar-clave') return <><PantallaAcceso /><DialogoCodigo /></>
   if (fase !== 'listo') return <PantallaConexion />
 
   let pantalla

@@ -97,7 +97,7 @@ export function Cabecera({ ruta }: { ruta: string }) {
             <div className="mt-0.5 truncate font-medium text-white" title={usuario.email ?? usuario.usuario ?? ''}>{usuario.nombre}</div>
             <div className="text-white/50">{textoRol(usuario.rol)}</div>
             <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-              {origen === 'local' && usuario.usuario && <button onClick={() => setCambiandoClave(true)} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cambiar contraseña</button>}
+              {<button onClick={() => setCambiandoClave(true)} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cambiar contraseña</button>}
               <button onClick={salir} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cerrar sesión</button>
             </div>
           </div>
