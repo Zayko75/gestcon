@@ -27,7 +27,17 @@ Los datos y las plantillas **no están en este repositorio**: el repositorio sol
 
 > Las páginas de GitHub Pages son públicas aunque el repositorio sea privado (salvo en planes Enterprise). No es un problema: la página solo contiene el programa, nunca datos.
 
-## Parte 2 · Conectar con Google Drive (una sola vez)
+## Parte 2 · Conexión directa con Google Drive (la que se usa ahora)
+
+Los usuarios entran **solo con su usuario y contraseña de GESTCON**: nadie ve la pantalla de Google. Lo hace posible un pequeño script de Google («puente», carpeta `puente/` de este repositorio) instalado en la cuenta de Google dueña de la carpeta `Patrocinios`. El script lee y guarda los archivos en nombre de esa cuenta.
+
+- **Seguridad.** Sin una contraseña válida el puente solo entrega `datos.sqlite` cifrado (lo necesita la pantalla de entrada). Guardar, plantillas, documentos y copias exigen una credencial que solo se puede calcular tras entrar con una contraseña válida; el script solo guarda su huella.
+- **Activación.** La primera vez, un administrador entra y escribe el código de activación (de un solo uso). Hasta entonces los demás usuarios no pueden entrar.
+- **Instalación (ya hecha).** En [script.google.com](https://script.google.com): proyecto nuevo, pegar `puente/Code.gs`, ejecutar `configurar` (pide los permisos de Drive) y *Implementar → Nueva implementación → Aplicación web*, con «Ejecutar como: Yo» y «Quién tiene acceso: Cualquier usuario». La dirección `…/exec` resultante va en `src/lib/puente.ts` (`URL_PUENTE`).
+- **Si cambias el código del script**, publica una versión nueva desde *Implementar → Gestionar implementaciones → Editar → Versión nueva*, para conservar la misma dirección.
+- Para volver al modo anterior (conectar con la cuenta de Google de cada uno), deja `URL_PUENTE` vacía o, en un navegador concreto, ejecuta `localStorage.setItem('gestcon-puente-url', 'no')`.
+
+## Parte 2b · Conectar con la cuenta de Google de cada usuario (modo anterior)
 
 ### 2.1 Subir la carpeta a Drive
 En [drive.google.com](https://drive.google.com) arrastra la carpeta `Patrocinios` (con `datos.sqlite` y `plantillas/`) a **Mi unidad**.

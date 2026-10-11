@@ -5,7 +5,7 @@
 import type { Carpeta, InfoArchivo, LecturaArchivo } from './fs'
 
 /** Dirección del puente publicado (es pública: sin credencial no permite nada) */
-const URL_PUENTE = 'https://script.google.com/macros/s/AKfycbPENDIENTE/exec'
+const URL_PUENTE = 'https://script.google.com/macros/s/AKfycbxJJ5H-23oFYphdUBLaa4rAAgy4hwHct_FtvGWSkJNNloqkPpK0SGzwh5NrTWBvrsVTKg/exec'
 const CLAVE_URL = 'gestcon-puente-url'
 
 export function urlPuente(): string {
