@@ -118,7 +118,7 @@ export function MarcoConexion({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-full lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <aside className="relative flex flex-col justify-between gap-10 overflow-hidden bg-noche px-6 py-8 text-white sm:px-10 lg:min-h-full lg:px-12 lg:py-12">
-        <Marca claro />
+        <Marca claro grande />
         <div className="relative max-lg:hidden">
           <p className="max-w-md font-display text-[2.9rem] font-semibold leading-[1.02] tracking-[-0.01em]">
             Cada patrocinio, con su expediente completo.

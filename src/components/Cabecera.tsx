@@ -6,15 +6,15 @@ import { useStore } from '../lib/store'
 import { Dialogo, useAviso } from './ui'
 import logo from '../assets/logo.png'
 
-/** Marca de la aplicación: el logo (contrato, apretón de manos y balón) y el nombre */
-export function Marca({ claro = false }: { claro?: boolean }) {
+/** Marca de la aplicación: el logo (C con balón y líneas de velocidad) y el nombre. «grande»: en la pantalla de entrada */
+export function Marca({ claro = false, grande = false }: { claro?: boolean; grande?: boolean }) {
   return (
-    <span className="flex items-center gap-3">
-      <img src={logo} alt="" width={48} height={48} draggable={false}
-        className={`size-12 shrink-0 rounded-[11px] ${claro ? 'ring-1 ring-white/15' : 'shadow-[0_6px_14px_-6px_rgba(22,27,69,.6)]'}`} />
+    <span className={`flex items-center ${grande ? 'gap-4 lg:gap-5' : 'gap-3'}`}>
+      <img src={logo} alt="" width={grande ? 96 : 48} height={grande ? 96 : 48} draggable={false}
+        className={`shrink-0 ${grande ? 'size-16 rounded-[15px] lg:size-24 lg:rounded-[22px]' : 'size-12 rounded-[11px]'} ${claro ? 'ring-1 ring-white/15' : 'shadow-[0_6px_14px_-6px_rgba(22,27,69,.6)]'}`} />
       <span className="leading-none">
-        <span className="block font-display text-[1.45rem] font-bold tracking-[0.02em]">GESTCON</span>
-        <span className={`mt-1 block text-[0.78rem] ${claro ? 'text-white/60' : 'text-tinta/55'}`}>Patrocinios deportivos</span>
+        <span className={`block font-display font-bold tracking-[0.02em] ${grande ? 'text-[1.9rem] lg:text-[2.6rem]' : 'text-[1.45rem]'}`}>GESTCON</span>
+        <span className={`mt-1 block ${grande ? 'text-[0.9rem] lg:mt-1.5 lg:text-[1.05rem]' : 'text-[0.78rem]'} ${claro ? 'text-white/60' : 'text-tinta/55'}`}>Patrocinios deportivos</span>
       </span>
     </span>
   )
