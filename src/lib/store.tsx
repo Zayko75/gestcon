@@ -13,6 +13,7 @@ import {
 } from './acceso'
 import * as cif from './cifrado'
 import { olvidarTodo as olvidarDeshacer } from './deshacer'
+import { CarpetaPuente, urlPuente } from './puente'
 
 type Fase =
   | 'inicio' | 'cargando' | 'sin-bd' | 'error'
@@ -22,8 +23,10 @@ type Fase =
   | 'proteger'
   /** El usuario debe cambiar su contraseña antes de seguir */
   | 'cambiar-clave'
+  /** Primera vez con la conexión directa a Drive: un administrador la activa con el código */
+  | 'activar'
   | 'listo'
-export type Origen = 'local' | 'drive'
+export type Origen = 'local' | 'drive' | 'puente'
 type EstadoGuardado = { estado: 'guardado' | 'guardando' | 'error'; hora?: Date; mensaje?: string }
 
 /** Cada cuánto se comprueba si otros usuarios han guardado cambios */
@@ -76,6 +79,10 @@ interface Ctx {
   reconectar: () => Promise<void>
   crearBDVacia: () => Promise<void>
   // Acceso
+  /** Hay conexión directa con Google Drive (sin pantalla de Google) */
+  hayPuente: boolean
+  reintentar: () => void
+  activarPuente: (codigo: string) => Promise<void>
   entrar: (usuario: string, clave: string) => Promise<void>
   salir: () => void
   proteger: (d: { nombre: string; usuario: string; clave: string }) => Promise<string>
@@ -125,7 +132,7 @@ const llaveDeFila = (ll: cif.Llave): Omit<bd.FilaLlave, 'titular'> => ({ sal: ll
 type OpNueva = Operacion extends infer T ? T extends Operacion ? Omit<T, 'id' | 'autor'> : never : never
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [fase, setFase] = useState<Fase>('inicio')
+  const [fase, setFase] = useState<Fase>(() => (urlPuente() ? 'cargando' : 'inicio'))
   const [error, setError] = useState('')
   const [conexion, setConexion] = useState<fs.ConexionGuardada | null>(null)
   const [sesionCaducada, setSesionCaducada] = useState(false)
@@ -156,6 +163,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const porConfirmar = useRef<Operacion[]>([])
   /** Usuario actual para la lógica (se actualiza siempre a la vez que el estado «usuario») */
   const usuarioRef = useRef<Usuario | null>(null)
+  /** Usuario que ha entrado y espera a que se active la conexión directa */
+  const porActivar = useRef<Usuario | null>(null)
   /** Clave de datos (solo en memoria mientras hay sesión). Con ella se cifra y descifra datos.sqlite. */
   const claveDatos = useRef<Uint8Array | null>(null)
 
@@ -175,6 +184,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fs.cargarConexion().then(setConexion)
   }, [])
+
 
   const puede = useCallback((a: Accion) => puedeRol(usuarioRef.current?.rol, a), [])
 
@@ -311,6 +321,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ---------- Apertura de la carpeta e identidad ----------
   const terminarApertura = useCallback(async (u: Usuario) => {
+    // Conexión directa con Drive: la credencial de esta sesión tiene que estar registrada en el puente
+    if (handle.current instanceof CarpetaPuente) {
+      const estado = await handle.current.estado()
+      if (estado !== 'ok') {
+        if (estado === 'sin_activar' && puedeRol(u.rol, 'administrar')) {
+          porActivar.current = u
+          setFase('activar')
+          return
+        }
+        claveDatos.current = null
+        guardarSesion(handle.current.nombre, null)
+        setAvisoAcceso(estado === 'sin_activar'
+          ? 'La conexión con Google Drive aún no está activada. Debe entrar primero un administrador para activarla.'
+          : 'Google Drive no reconoce la clave de los datos. Habla con el administrador.')
+        setFase('acceso')
+        return
+      }
+    }
     setUsuario(u)
     usuarioRef.current = u
     setAvisoAcceso('')
@@ -413,6 +441,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [refrescar, abrirComo])
 
+  /** Conexión directa con Google Drive: se abre sola, sin elegir carpeta ni iniciar sesión en Google */
+  const abrirPuente = useCallback(() => {
+    const url = urlPuente()
+    if (url) void abrirCarpeta(new CarpetaPuente(url, 'Patrocinios', () => claveDatos.current))
+  }, [abrirCarpeta])
+  useEffect(() => { abrirPuente() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activarPuente = useCallback(async (codigo: string) => {
+    const h = handle.current
+    const u = porActivar.current
+    if (!(h instanceof CarpetaPuente) || !u) throw new Error('Vuelve a entrar con tu usuario y contraseña.')
+    await h.activar(codigo)
+    porActivar.current = null
+    await terminarApertura(u)
+  }, [terminarApertura])
+
   /** Abre la última carpeta usada (hay que llamarlo desde un clic) */
   const continuar = useCallback(async () => {
     const c = conexion
@@ -504,6 +548,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       db.current = null
     })
     if (h) guardarSesion(h.nombre, null)
+    porActivar.current = null
     olvidarDeshacer() // el siguiente usuario no puede deshacer lo que hizo el anterior
     // El siguiente usuario empieza en el listado, no en la última pantalla del anterior
     if (location.hash && location.hash !== '#/') location.hash = '#/'
@@ -718,12 +763,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     origen: dirRaiz?.tipo ?? null,
     usuario, usuarios, conClave, avisoAcceso, adminPropuesto, puede, remap, ultimaSincronizacion, codigoRecuperacion, cerrarCodigo: () => setCodigoRecuperacion(null),
     continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar, crearBDVacia,
+    hayPuente: !!urlPuente(), reintentar: abrirPuente, activarPuente,
     entrar, salir, proteger, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,
     crear, actualizar, eliminar, guardarConfig, sincronizarAhora,
     listarCopias: listar, copiaAhora, restaurar,
   }), [fase, error, conexion, nombreCarpeta, registros, entidades, informeMigracion, guardado, ivaPct, config, dirRaiz, sesionCaducada,
     usuario, usuarios, conClave, avisoAcceso, adminPropuesto, puede, remap, ultimaSincronizacion, codigoRecuperacion,
-    continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar, crearBDVacia,
+    continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar, crearBDVacia, abrirPuente, activarPuente,
     entrar, salir, proteger, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,
     crear, actualizar, eliminar, guardarConfig, sincronizarAhora, listar, copiaAhora, restaurar])
 

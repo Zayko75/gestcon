@@ -40,7 +40,7 @@ const IconoCopias = () => (
 )
 
 export function Cabecera({ ruta }: { ruta: string }) {
-  const { nombreCarpeta, guardado, cambiarCarpeta, origen, sesionCaducada, reconectar, registros, usuario, puede, salir } = useStore()
+  const { nombreCarpeta, guardado, cambiarCarpeta, origen, sesionCaducada, reconectar, registros, usuario, puede, salir, hayPuente } = useStore()
   const [cambiandoClave, setCambiandoClave] = useState(false)
   // Lo urgente: firmas a menos de 30 días del evento y eventos celebrados sin tramitar
   const urgentes = useMemo(() => { const p = pendientes(registros); return p.firmaUrgente.length + p.porJustificar.length }, [registros])
@@ -100,12 +100,12 @@ export function Cabecera({ ruta }: { ruta: string }) {
           </div>
         )}
         <div>
-          <div className="text-white/50">{origen === 'drive' ? 'Carpeta en Google Drive' : 'Carpeta de datos'}</div>
+          <div className="text-white/50">{origen === 'local' ? 'Carpeta de datos' : 'Carpeta en Google Drive'}</div>
           <div className="mt-0.5 truncate font-medium text-white" title={nombreCarpeta}>
-            <span className="sr-only">{origen === 'drive' ? 'Google Drive' : 'Carpeta'}: </span>{nombreCarpeta}
+            <span className="sr-only">{origen === 'local' ? 'Carpeta' : 'Google Drive'}: </span>{nombreCarpeta}
           </div>
         </div>
-        <button onClick={cambiarCarpeta} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cambiar carpeta</button>
+        {!hayPuente && <button onClick={cambiarCarpeta} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cambiar carpeta</button>}
       </div>
 
       {usuario && (

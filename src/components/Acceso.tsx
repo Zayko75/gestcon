@@ -34,7 +34,7 @@ function useEnvio() {
 const AYUDA_CLAVE = `Al menos ${LONGITUD_MINIMA} caracteres, con letras y números.`
 
 function Entrar() {
-  const { entrar, recuperarClave, nombreCarpeta, cambiarCarpeta, avisoAcceso } = useStore()
+  const { entrar, recuperarClave, nombreCarpeta, cambiarCarpeta, avisoAcceso, hayPuente } = useStore()
   const [modo, setModo] = useState<'entrar' | 'recuperar'>('entrar')
   const [usuario, setUsuario] = useState(() => { try { return localStorage.getItem('gestcon-ultimo-usuario') ?? '' } catch { return '' } })
   const [clave, setClave] = useState('')
@@ -75,7 +75,7 @@ function Entrar() {
     <form className="space-y-5" onSubmit={enviar(async () => { recordar(); await entrar(usuario, clave) })}>
       <div>
         <h1 className="titulo">Entrar</h1>
-        <p className="mt-2 leading-relaxed text-tinta/65">Carpeta <strong className="font-semibold text-tinta">{nombreCarpeta}</strong>. Escribe tu usuario y contraseña de GESTCON.</p>
+        <p className="mt-2 leading-relaxed text-tinta/65">{hayPuente ? 'Escribe tu usuario y contraseña de GESTCON.' : <>Carpeta <strong className="font-semibold text-tinta">{nombreCarpeta}</strong>. Escribe tu usuario y contraseña de GESTCON.</>}</p>
       </div>
       <MensajeError texto={error || avisoAcceso} />
       <Campo id="a-usuario" etiqueta="Usuario"><input id="a-usuario" className="campo" value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" autoFocus={!usuario} required /></Campo>
@@ -84,9 +84,11 @@ function Entrar() {
         <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Comprobando…' : 'Entrar'}</button>
         <button type="button" className="btn-texto" onClick={() => { setModo('recuperar'); setError('') }}>¿Has olvidado la contraseña?</button>
       </div>
-      <p className="border-t border-linea pt-4 text-[0.88rem] text-tinta/60">
-        ¿No es esta carpeta? <button type="button" className="font-medium text-indigo underline underline-offset-2" onClick={cambiarCarpeta}>Cambiar carpeta</button>
-      </p>
+      {!hayPuente && (
+        <p className="border-t border-linea pt-4 text-[0.88rem] text-tinta/60">
+          ¿No es esta carpeta? <button type="button" className="font-medium text-indigo underline underline-offset-2" onClick={cambiarCarpeta}>Cambiar carpeta</button>
+        </p>
+      )}
     </form>
   )
 }
@@ -149,6 +151,31 @@ function CambiarClave() {
   )
 }
 
+function Activar() {
+  const { activarPuente, salir } = useStore()
+  const [codigo, setCodigo] = useState('')
+  const { error, ocupado, enviar } = useEnvio()
+  return (
+    <form className="space-y-5" onSubmit={enviar(() => activarPuente(codigo))}>
+      <div>
+        <h1 className="titulo">Activa la conexión</h1>
+        <p className="mt-2 leading-relaxed text-tinta/65">
+          Es la primera vez que se entra sin iniciar sesión en Google. Escribe el código de activación para conectar GESTCON con la carpeta de Google Drive.
+          Solo hace falta una vez: después todos entrarán solo con su usuario y contraseña.
+        </p>
+      </div>
+      <MensajeError texto={error} />
+      <Campo id="v-codigo" etiqueta="Código de activación">
+        <input id="v-codigo" className="campo font-medium uppercase tracking-[0.08em]" value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" autoComplete="off" autoFocus required />
+      </Campo>
+      <div className="flex flex-wrap items-center gap-3">
+        <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Activando…' : 'Activar y entrar'}</button>
+        <button type="button" className="btn-texto" onClick={salir}>Salir</button>
+      </div>
+    </form>
+  )
+}
+
 export function PantallaAcceso() {
   const { fase } = useStore()
   return (
@@ -156,6 +183,7 @@ export function PantallaAcceso() {
       {fase === 'acceso' && <Entrar />}
       {fase === 'proteger' && <Proteger />}
       {fase === 'cambiar-clave' && <CambiarClave />}
+      {fase === 'activar' && <Activar />}
     </MarcoConexion>
   )
 }

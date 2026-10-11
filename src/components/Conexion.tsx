@@ -138,12 +138,26 @@ export function MarcoConexion({ children }: { children: React.ReactNode }) {
 }
 
 export function PantallaConexion() {
-  const { fase, error, carpetaGuardada, continuar, elegirOtra, crearBDVacia, nombreCarpeta, dirRaiz } = useStore()
+  const { fase, error, carpetaGuardada, continuar, elegirOtra, crearBDVacia, nombreCarpeta, dirRaiz, hayPuente, reintentar } = useStore()
   const local = soportado()
 
   return (
     <MarcoConexion>
-          {fase === 'cargando' ? (
+          {hayPuente && fase !== 'sin-bd' && fase !== 'cargando' ? (
+            <div className="space-y-5">
+              <h1 className="titulo">{fase === 'error' ? 'No se pueden abrir los datos' : 'Conectando…'}</h1>
+              {error && <p role="alert" className="rounded-lg border border-error/30 bg-error/[.06] px-4 py-3 text-[0.92rem] text-error">{error}</p>}
+              <p className="leading-relaxed text-tinta/70">Los datos están en la carpeta <strong>Patrocinios</strong> de Google Drive. Comprueba la conexión a internet y vuelve a intentarlo.</p>
+              <button className="btn-primario" onClick={reintentar}>Volver a intentar</button>
+            </div>
+          ) : fase === 'cargando' ? (
+            hayPuente ? (
+              <div role="status">
+                <h1 className="titulo">Conectando…</h1>
+                <p className="mt-3 text-tinta/65">Abriendo los datos de Google Drive.</p>
+              </div>
+            ) :
+
             <div role="status">
               <h1 className="titulo">Abriendo los datos…</h1>
               <p className="mt-3 text-tinta/65">Se está leyendo <code>datos.sqlite</code> y creando la copia de seguridad del día.</p>
@@ -152,7 +166,7 @@ export function PantallaConexion() {
             <div className="space-y-5">
               <h1 className="titulo">No hay base de datos</h1>
               <p className="leading-relaxed text-tinta/75">
-                En la carpeta <strong>{nombreCarpeta}</strong>{dirRaiz?.tipo === 'drive' ? ' de Google Drive' : ''} no hay ningún archivo <code>datos.sqlite</code>.
+                En la carpeta <strong>{nombreCarpeta}</strong>{dirRaiz && dirRaiz.tipo !== 'local' ? ' de Google Drive' : ''} no hay ningún archivo <code>datos.sqlite</code>.
                 Si ya lo tienes, cópialo ahí y pulsa «Volver a comprobar». Si empiezas desde cero, crea una base de datos vacía.
               </p>
               <div className="flex flex-wrap gap-2">

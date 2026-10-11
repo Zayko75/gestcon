@@ -18,7 +18,7 @@ export interface LecturaArchivo {
 }
 
 export interface Carpeta {
-  tipo: 'local' | 'drive'
+  tipo: 'local' | 'drive' | 'puente'
   nombre: string
   sub(nombre: string, crear?: boolean): Promise<Carpeta>
   existe(nombre: string): Promise<boolean>

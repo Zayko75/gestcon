@@ -70,7 +70,7 @@ function Contenido() {
     const nuevo = m ? remap[Number(m[1])] : undefined
     if (nuevo !== undefined) location.replace(`#/registro/${nuevo}`)
   }, [ruta, remap])
-  if (fase === 'acceso' || fase === 'proteger' || fase === 'cambiar-clave') return <><PantallaAcceso /><DialogoCodigo /></>
+  if (fase === 'acceso' || fase === 'proteger' || fase === 'cambiar-clave' || fase === 'activar') return <><PantallaAcceso /><DialogoCodigo /></>
   if (fase !== 'listo') return <PantallaConexion />
 
   let pantalla
