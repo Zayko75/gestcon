@@ -40,7 +40,7 @@ const IconoCopias = () => (
 )
 
 export function Cabecera({ ruta }: { ruta: string }) {
-  const { nombreCarpeta, guardado, cambiarCarpeta, origen, sesionCaducada, reconectar, registros, usuario, puede, salir, hayPuente } = useStore()
+  const { nombreCarpeta, guardado, cambiarCarpeta, origen, sesionCaducada, reconectar, registros, usuario, puede, salir } = useStore()
   const [cambiandoClave, setCambiandoClave] = useState(false)
   // Lo urgente: firmas a menos de 30 días del evento y eventos celebrados sin tramitar
   const urgentes = useMemo(() => { const p = pendientes(registros); return p.firmaUrgente.length + p.porJustificar.length }, [registros])
@@ -105,7 +105,7 @@ export function Cabecera({ ruta }: { ruta: string }) {
             <span className="sr-only">{origen === 'local' ? 'Carpeta' : 'Google Drive'}: </span>{nombreCarpeta}
           </div>
         </div>
-        {!hayPuente && <button onClick={cambiarCarpeta} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cambiar carpeta</button>}
+        <button onClick={cambiarCarpeta} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cambiar carpeta</button>
       </div>
 
       {usuario && (

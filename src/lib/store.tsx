@@ -13,7 +13,7 @@ import {
 } from './acceso'
 import * as cif from './cifrado'
 import { olvidarTodo as olvidarDeshacer } from './deshacer'
-import { CarpetaPuente, urlPuente } from './puente'
+import { CarpetaPuente, credencialAntigua, credencialPuente, huellaDe, SinActivarError, SinPermisoPuenteError, urlPuente, USUARIO_RECUPERACION, type Identidad } from './puente'
 
 type Fase =
   | 'inicio' | 'cargando' | 'sin-bd' | 'error'
@@ -82,6 +82,8 @@ interface Ctx {
   /** Hay conexión directa con Google Drive (sin pantalla de Google) */
   hayPuente: boolean
   reintentar: () => void
+  /** Usuarios con acceso al puente (null si no se usa la conexión directa) */
+  accesosPuente: () => Promise<string[] | null>
   activarPuente: (codigo: string) => Promise<void>
   entrar: (usuario: string, clave: string) => Promise<void>
   salir: () => void
@@ -113,16 +115,16 @@ export function useStore(): Ctx {
 
 // Sesión de esta pestaña: se olvida al cerrarla (sessionStorage). Guarda la clave para no pedir la contraseña al recargar.
 const CLAVE_SESION = 'gestcon-sesion'
-function leerSesion(carpeta: string): { id: number; clave: Uint8Array } | null {
+function leerSesion(carpeta: string): { id: number; clave: Uint8Array; puente: Identidad | null } | null {
   try {
     const s = JSON.parse(sessionStorage.getItem(CLAVE_SESION) ?? 'null')
-    return s && s.carpeta === carpeta && s.clave ? { id: Number(s.id), clave: cif.claveDatosDeB64(s.clave) } : null
+    return s && s.carpeta === carpeta && s.clave ? { id: Number(s.id), clave: cif.claveDatosDeB64(s.clave), puente: s.puente ?? null } : null
   } catch { return null }
 }
-function guardarSesion(carpeta: string, id: number | null, clave?: Uint8Array | null) {
+function guardarSesion(carpeta: string, id: number | null, clave?: Uint8Array | null, puente?: Identidad | null) {
   try {
     if (id === null || !clave) sessionStorage.removeItem(CLAVE_SESION)
-    else sessionStorage.setItem(CLAVE_SESION, JSON.stringify({ carpeta, id, clave: cif.claveDatosAB64(clave) }))
+    else sessionStorage.setItem(CLAVE_SESION, JSON.stringify({ carpeta, id, clave: cif.claveDatosAB64(clave), puente: puente ?? null }))
   } catch { /* sin almacenamiento: habrá que entrar en cada recarga */ }
 }
 
@@ -165,6 +167,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const usuarioRef = useRef<Usuario | null>(null)
   /** Usuario que ha entrado y espera a que se active la conexión directa */
   const porActivar = useRef<Usuario | null>(null)
+  const guardarRecuperacionRef = useRef<(() => Promise<string>) | null>(null)
+  /** La carpeta abierta, si es la conexión directa con Drive */
+  const puente = () => (handle.current instanceof CarpetaPuente ? handle.current : null)
   /** Clave de datos (solo en memoria mientras hay sesión). Con ella se cifra y descifra datos.sqlite. */
   const claveDatos = useRef<Uint8Array | null>(null)
 
@@ -321,20 +326,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ---------- Apertura de la carpeta e identidad ----------
   const terminarApertura = useCallback(async (u: Usuario) => {
-    // Conexión directa con Drive: la credencial de esta sesión tiene que estar registrada en el puente
-    if (handle.current instanceof CarpetaPuente) {
-      const estado = await handle.current.estado()
+    // Conexión directa con Drive: el usuario tiene que tener acceso en el puente
+    const pu = handle.current instanceof CarpetaPuente ? handle.current : null
+    let codigoNuevo = false
+    if (pu) {
+      let estado = await pu.estado()
+      const admin = puedeRol(u.rol, 'administrar')
+      if (estado === 'migrar' && admin) {
+        // Versión 1 del puente (credencial común): pasa a credenciales por usuario
+        await pu.activar({ legado: await credencialAntigua(claveDatos.current!) })
+        estado = await pu.estado()
+        codigoNuevo = true
+      }
+      if (estado === 'sin_activar' && admin) {
+        porActivar.current = u
+        setFase('activar')
+        return
+      }
       if (estado !== 'ok') {
-        if (estado === 'sin_activar' && puedeRol(u.rol, 'administrar')) {
-          porActivar.current = u
-          setFase('activar')
-          return
-        }
         claveDatos.current = null
-        guardarSesion(handle.current.nombre, null)
-        setAvisoAcceso(estado === 'sin_activar'
-          ? 'La conexión con Google Drive aún no está activada. Debe entrar primero un administrador para activarla.'
-          : 'Google Drive no reconoce la clave de los datos. Habla con el administrador.')
+        pu.ponerIdentidad(null)
+        guardarSesion(pu.nombre, null)
+        setAvisoAcceso(estado === 'sin_permiso'
+          ? 'Este usuario no tiene acceso a los datos de Google Drive. Pide al administrador que te ponga una contraseña provisional.'
+          : 'La conexión con Google Drive aún no está activada. Debe entrar primero un administrador para activarla.')
         setFase('acceso')
         return
       }
@@ -343,7 +358,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     usuarioRef.current = u
     setAvisoAcceso('')
     const h = handle.current!
-    guardarSesion(h.nombre, u.id, claveDatos.current)
+    guardarSesion(h.nombre, u.id, claveDatos.current, pu?.identidad)
     if (u.cambiar_clave) { setFase('cambiar-clave'); return }
     // Copia automática: una al día, la primera vez que la abre alguien que puede escribir
     if (puedeRol(u.rol, 'editar')) {
@@ -356,6 +371,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refrescar()
     setGuardado({ estado: 'guardado' })
     setFase('listo')
+    // Tras activar o migrar el puente, el código de recuperación tiene que tener también acceso: se crea uno nuevo
+    if (codigoNuevo) await guardarRecuperacionRef.current?.()
   }, [refrescar, serializar])
 
   /**
@@ -398,11 +415,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       claveDatos.current = null
       pendientes.current = []
       porConfirmar.current = []
-      if (!(await fs.existe(h, 'datos.sqlite'))) {
-        setFase('sin-bd')
-        return
+      let leido: fs.LecturaArchivo
+      try {
+        if (h instanceof CarpetaPuente) h.ponerIdentidad(leerSesion(h.nombre)?.puente ?? null)
+        if (!(await fs.existe(h, 'datos.sqlite'))) {
+          setFase('sin-bd')
+          return
+        }
+        leido = await fs.leerBytes(h, 'datos.sqlite')
+      } catch (e) {
+        // Conexión directa sin sesión iniciada: hay que entrar con usuario y contraseña
+        if (h instanceof CarpetaPuente && (e instanceof SinPermisoPuenteError || e instanceof SinActivarError)) {
+          h.ponerIdentidad(null)
+          guardarSesion(h.nombre, null)
+          setFase('acceso')
+          return
+        }
+        throw e
       }
-      const { datos, marca } = await fs.leerBytes(h, 'datos.sqlite')
+      const { datos, marca } = leido
       if (cif.estaCifrado(datos)) {
         // Al recargar la pestaña no se vuelve a pedir la contraseña
         const sesion = leerSesion(h.nombre)
@@ -442,19 +473,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [refrescar, abrirComo])
 
   /** Conexión directa con Google Drive: se abre sola, sin elegir carpeta ni iniciar sesión en Google */
-  const abrirPuente = useCallback(() => {
+  const abrirPuente = useCallback(async () => {
     const url = urlPuente()
-    if (url) void abrirCarpeta(new CarpetaPuente(url, 'Patrocinios', () => claveDatos.current))
+    if (!url) return
+    const c: fs.ConexionGuardada = { tipo: 'puente', nombre: 'Patrocinios' }
+    await fs.guardarConexion(c).catch(() => undefined)
+    setConexion(c)
+    await abrirCarpeta(new CarpetaPuente(url, 'Patrocinios'))
   }, [abrirCarpeta])
-  useEffect(() => { abrirPuente() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Al abrir la aplicación: si la última vez se usó una carpeta del ordenador o de red, se ofrece esa;
+  // si no, se conecta directamente con Google Drive
+  useEffect(() => {
+    void (async () => {
+      const c = await fs.cargarConexion().catch(() => null)
+      if (urlPuente() && c?.tipo !== 'local') await abrirPuente()
+      else setFase((f) => (f === 'cargando' ? 'inicio' : f))
+    })()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const activarPuente = useCallback(async (codigo: string) => {
     const h = handle.current
     const u = porActivar.current
     if (!(h instanceof CarpetaPuente) || !u) throw new Error('Vuelve a entrar con tu usuario y contraseña.')
-    await h.activar(codigo)
+    await h.activar({ codigo })
     porActivar.current = null
     await terminarApertura(u)
+    // El código de recuperación también necesita acceso al puente: se crea uno nuevo
+    await guardarRecuperacionRef.current?.()
   }, [terminarApertura])
 
   /** Abre la última carpeta usada (hay que llamarlo desde un clic) */
@@ -462,6 +507,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const c = conexion
     if (!c) return
     try {
+      if (c.tipo === 'puente') { await abrirPuente(); return }
       if (c.tipo === 'local') {
         if (!(await fs.asegurarPermiso(c.handle))) {
           fallo('Hace falta permiso para leer y escribir en la carpeta. Vuelve a intentarlo y pulsa «Permitir».')
@@ -475,7 +521,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       fallo(e, c.tipo === 'local' ? 'No se puede acceder a la carpeta (¿sigue disponible la unidad de red?). ' : '')
     }
-  }, [abrirCarpeta, conexion])
+  }, [abrirCarpeta, abrirPuente, conexion])
 
   const elegirOtra = useCallback(async () => {
     try {
@@ -526,9 +572,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const entrar = useCallback(async (nombre: string, clave: string) => {
     const h = handle.current
     if (!h) throw new Error('No hay ninguna carpeta abierta.')
+    if (h instanceof CarpetaPuente) {
+      // Conexión directa: primero el puente comprueba el usuario y la contraseña
+      const usuarioN = normalizarUsuario(nombre)
+      h.ponerIdentidad({ usuario: usuarioN, credencial: await credencialPuente(usuarioN, clave) })
+      if ((await h.estado()) === 'sin_permiso') {
+        h.ponerIdentidad(null)
+        await pausa(500)
+        throw new Error('Usuario o contraseña incorrectos.')
+      }
+    }
     const { datos, marca } = await fs.leerBytes(h, 'datos.sqlite') // siempre el archivo al día
     const r = await cif.entrarCon(datos, normalizarUsuario(nombre), clave)
     if (!r) {
+      if (h instanceof CarpetaPuente) h.ponerIdentidad(null)
       await pausa(500) // frena los intentos repetidos
       throw new Error('Usuario o contraseña incorrectos.')
     }
@@ -548,6 +605,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       db.current = null
     })
     if (h) guardarSesion(h.nombre, null)
+    if (h instanceof CarpetaPuente) h.ponerIdentidad(null)
     porActivar.current = null
     olvidarDeshacer() // el siguiente usuario no puede deshacer lo que hizo el anterior
     // El siguiente usuario empieza en el listado, no en la última pantalla del anterior
@@ -564,9 +622,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const codigo = nuevoCodigoRecuperacion()
     const ll = await cif.envolver(claveDatos.current!, normalizarCodigo(codigo), 'recuperacion', '')
     await ejecutar({ tipo: 'llave', titular: 'recuperacion', llave: llaveDeFila(ll) }, null)
+    const pu = puente()
+    if (pu) await pu.acceso(USUARIO_RECUPERACION, await huellaDe(await credencialPuente(USUARIO_RECUPERACION, normalizarCodigo(codigo))), true)
     setCodigoRecuperacion(codigo)
     return codigo
   }, [ejecutar])
+  guardarRecuperacionRef.current = guardarRecuperacion
 
   /** Protege un archivo sin cifrar: crea el administrador con contraseña y cifra los datos */
   const proteger = useCallback(async (d: { nombre: string; usuario: string; clave: string }) => {
@@ -611,6 +672,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!h) throw new Error('No hay ninguna carpeta abierta.')
     const p = problemaClave(nueva)
     if (p) throw new Error(p)
+    if (h instanceof CarpetaPuente) {
+      h.ponerIdentidad({ usuario: USUARIO_RECUPERACION, credencial: await credencialPuente(USUARIO_RECUPERACION, normalizarCodigo(codigo)) })
+      if ((await h.estado()) !== 'ok') { h.ponerIdentidad(null); await pausa(500); throw new Error('El código de recuperación no es válido.') }
+    }
     const { datos, marca } = await fs.leerBytes(h, 'datos.sqlite')
     const clave = await cif.entrarConCodigo(datos, normalizarCodigo(codigo))
     if (!clave) { await pausa(500); throw new Error('El código de recuperación no es válido.') }
@@ -623,9 +688,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!(await abrirComo(datos, marca, u.id))) { claveDatos.current = null; throw new Error('No se pudo entrar con ese usuario.') }
     const ll = await cif.envolver(clave, nueva, `u:${u.id}`, u.usuario!.toLowerCase())
     await ejecutar({ tipo: 'usuario', registro: u.id, llave: llaveDeFila(ll), datos: { ...u, cambiar_clave: 0 } }, null)
+    if (h instanceof CarpetaPuente) {
+      // Acceso al puente con la contraseña nueva; a partir de aquí se trabaja como ese administrador
+      const id = { usuario: u.usuario!.toLowerCase(), credencial: await credencialPuente(u.usuario!.toLowerCase(), nueva) }
+      await h.acceso(id.usuario, await huellaDe(id.credencial), true)
+      h.ponerIdentidad(id)
+    }
     const yo = bd.listarUsuarios(db.current!).find((x) => x.id === u.id)!
     setUsuario(yo); usuarioRef.current = yo
-    guardarSesion(h.nombre, yo.id, clave)
+    guardarSesion(h.nombre, yo.id, clave, h instanceof CarpetaPuente ? h.identidad : null)
     setFase('listo')
     return guardarRecuperacion()
   }, [abrirBytes, abrirComo, ejecutar, guardarRecuperacion])
@@ -641,6 +712,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (actual === nueva) throw new Error('La contraseña nueva debe ser distinta de la actual.')
     const ll = await cif.envolver(claveDatos.current, nueva, `u:${u.id}`, (u.usuario ?? '').toLowerCase())
     await ejecutar({ tipo: 'usuario', registro: u.id, llave: llaveDeFila(ll), datos: { ...u, cambiar_clave: 0 } }, null)
+    const pu = puente()
+    if (pu) {
+      const id = { usuario: (u.usuario ?? '').toLowerCase(), credencial: await credencialPuente((u.usuario ?? '').toLowerCase(), nueva) }
+      await pu.acceso(id.usuario, await huellaDe(id.credencial))
+      pu.ponerIdentidad(id)
+      guardarSesion(pu.nombre, u.id, claveDatos.current, id)
+    }
     const yo = bd.listarUsuarios(db.current!).find((x) => x.id === u.id)!
     if (fase === 'cambiar-clave') await terminarApertura(yo)
     else { setUsuario(yo); usuarioRef.current = yo }
@@ -676,6 +754,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     const registro = id ?? idNuevo(db.current!, 'usuarios')
     const llave = d.clave ? llaveDeFila(await cif.envolver(claveDatos.current!, d.clave, `u:${registro}`, usuarioN)) : undefined
+    // Conexión directa: el acceso al puente va con el usuario y su contraseña
+    const pu = puente()
+    if (pu) {
+      const anterior = antes?.usuario?.toLowerCase() ?? ''
+      const renombrado = !!anterior && anterior !== usuarioN
+      if (renombrado && !d.clave) throw new Error('Al cambiar el nombre de usuario, pon también una contraseña provisional.')
+      if (antes && !antes.activo && d.activo && !d.clave) throw new Error('Para volver a activar este usuario, ponle una contraseña provisional.')
+      if (!d.activo) await pu.acceso(usuarioN, null)
+      else if (d.clave) {
+        const credencial = await credencialPuente(usuarioN, d.clave)
+        await pu.acceso(usuarioN, await huellaDe(credencial), d.rol === 'admin')
+        if (registro === usuarioRef.current?.id) {
+          pu.ponerIdentidad({ usuario: usuarioN, credencial })
+          guardarSesion(pu.nombre, registro, claveDatos.current, pu.identidad)
+        }
+      } else await pu.acceso(usuarioN, undefined, d.rol === 'admin')
+      if (renombrado) await pu.acceso(anterior, null)
+    }
     await ejecutar({ tipo: 'usuario', registro, nuevo: id === undefined, datos, llave }, 'administrar')
     return null
   }, [ejecutar])
@@ -687,9 +783,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!u) return null
     if (id === usuarioRef.current?.id) throw new Error('No puedes eliminar tu propio usuario.')
     if (u.rol === 'admin' && u.activo && lista.filter((x) => x.rol === 'admin' && x.activo).length <= 1) throw new Error('Tiene que quedar al menos un administrador activo.')
+    // El acceso al puente se retira al momento
+    const pu = puente()
+    if (pu && u.usuario) await pu.acceso(u.usuario.toLowerCase(), null)
     await ejecutar({ tipo: 'usuario', registro: id, datos: null }, 'administrar')
     return null
   }, [ejecutar])
+
+  const accesosPuente = useCallback(async () => {
+    const pu = puente()
+    if (!pu || !puedeRol(usuarioRef.current?.rol, 'administrar')) return null
+    return (await pu.accesos()).map((a) => a.usuario)
+  }, [])
 
   // ---------- Datos ----------
   const crear = useCallback(async (d: DatosPatrocinio) => {
@@ -763,13 +868,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     origen: dirRaiz?.tipo ?? null,
     usuario, usuarios, conClave, avisoAcceso, adminPropuesto, puede, remap, ultimaSincronizacion, codigoRecuperacion, cerrarCodigo: () => setCodigoRecuperacion(null),
     continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar, crearBDVacia,
-    hayPuente: !!urlPuente(), reintentar: abrirPuente, activarPuente,
+    hayPuente: !!urlPuente(), reintentar: () => void abrirPuente(), activarPuente, accesosPuente,
     entrar, salir, proteger, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,
     crear, actualizar, eliminar, guardarConfig, sincronizarAhora,
     listarCopias: listar, copiaAhora, restaurar,
   }), [fase, error, conexion, nombreCarpeta, registros, entidades, informeMigracion, guardado, ivaPct, config, dirRaiz, sesionCaducada,
     usuario, usuarios, conClave, avisoAcceso, adminPropuesto, puede, remap, ultimaSincronizacion, codigoRecuperacion,
-    continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar, crearBDVacia, abrirPuente, activarPuente,
+    continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar, crearBDVacia, abrirPuente, activarPuente, accesosPuente,
     entrar, salir, proteger, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,
     crear, actualizar, eliminar, guardarConfig, sincronizarAhora, listar, copiaAhora, restaurar])
 

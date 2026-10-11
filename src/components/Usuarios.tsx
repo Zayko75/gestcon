@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LONGITUD_MINIMA, ROLES, textoRol } from '../lib/acceso'
 import { useStore, type DatosUsuarioForm } from '../lib/store'
 import type { Rol, Usuario } from '../types'
@@ -121,9 +121,17 @@ function Editor({ u, onCerrar }: { u: Usuario | null; onCerrar: () => void }) {
 }
 
 export function Usuarios() {
-  const { usuarios, usuario: yo, puede, nuevoCodigo, conClave } = useStore()
+  const { usuarios, usuario: yo, puede, nuevoCodigo, conClave, accesosPuente } = useStore()
   const aviso = useAviso()
   const [editando, setEditando] = useState<Usuario | null | 'nuevo'>(null)
+  // Con la conexión directa a Drive: quién tiene acceso al puente (se vuelve a mirar al cambiar los usuarios)
+  const [conAcceso, setConAcceso] = useState<string[] | null>(null)
+  useEffect(() => {
+    let vivo = true
+    accesosPuente().then((a) => { if (vivo) setConAcceso(a) }).catch(() => undefined)
+    return () => { vivo = false }
+  }, [accesosPuente, usuarios])
+  const sinAccesoDrive = (u: Usuario) => !!conAcceso && !!u.activo && !!u.usuario && conClave.includes(u.id) && !conAcceso.includes(u.usuario.toLowerCase())
 
   if (!puede('administrar')) {
     return <main className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-8"><p className="font-display text-3xl font-semibold">Solo para administradores</p></main>
@@ -161,11 +169,12 @@ export function Usuarios() {
                     </button>
                     {!u.activo && <span className="ml-2 rounded bg-tinta/[.07] px-1.5 py-0.5 text-[0.76rem] font-medium">Desactivado</span>}
                     {u.cambiar_clave ? <span className="ml-2 text-[0.8rem] text-aviso">Debe cambiar la contraseña</span> : null}
-                    <div className="mt-0.5 text-[0.84rem] text-tinta/55 md:hidden">{u.usuario ?? 'Sin usuario'}</div>
+                    <div className="mt-0.5 text-[0.84rem] text-tinta/55 md:hidden">{u.usuario ?? 'Sin usuario'}{sinAccesoDrive(u) && <span className="text-aviso"> · sin acceso a Drive</span>}</div>
                   </td>
                   <td className="px-4 py-3 text-[0.88rem] text-tinta/70 max-md:hidden">
                     {u.usuario ?? <span className="text-aviso">Sin usuario</span>}
                     {u.usuario && !conClave.includes(u.id) && <span className="text-aviso"> (sin contraseña: no puede entrar)</span>}
+                    {sinAccesoDrive(u) && <span className="text-aviso"> (sin acceso a Drive: ponle una contraseña provisional)</span>}
                   </td>
                   <td className="px-4 py-3"><ChipRol rol={u.rol} /></td>
                 </tr>

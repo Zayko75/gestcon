@@ -1,7 +1,7 @@
 // Conexión con Google Drive a través del «puente»: un script de Google Apps Script instalado en la cuenta
 // del propietario de la carpeta (ver puente/Code.gs). Los usuarios no inician sesión en Google: entran con su
-// usuario y contraseña de GESTCON, y con la clave de datos que abre su contraseña se calcula la credencial
-// que el puente exige para todo lo que no sea leer el archivo cifrado.
+// usuario y contraseña de GESTCON. Con ellos se calcula su credencial para el puente, que solo guarda su huella.
+// Los administradores dan de alta y retiran esas credenciales al gestionar los usuarios.
 import type { Carpeta, InfoArchivo, LecturaArchivo } from './fs'
 
 /** Dirección del puente publicado (es pública: sin credencial no permite nada) */
@@ -22,16 +22,33 @@ export class SinActivarError extends Error {
   constructor() { super('La conexión con Google Drive aún no está activada. Un administrador debe entrar y activarla con el código de activación.') }
 }
 export class SinPermisoPuenteError extends Error {
-  constructor() { super('Google Drive no acepta la credencial de esta sesión. Cierra la sesión y vuelve a entrar.') }
+  constructor() { super('Este usuario no tiene acceso a los datos de Google Drive. Pide al administrador que te ponga una contraseña provisional.') }
 }
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('')
 
-/** Credencial para el puente: HMAC-SHA256 de un texto fijo con la clave de datos */
-export async function credencialDe(claveDatos: Uint8Array): Promise<string> {
+/** Usuario del puente que corresponde al código de recuperación */
+export const USUARIO_RECUPERACION = '#recuperacion'
+
+/** Credencial de un usuario para el puente: PBKDF2 de su contraseña (la sal depende del nombre de usuario) */
+export async function credencialPuente(usuario: string, clave: string): Promise<string> {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(clave.normalize('NFC')), 'PBKDF2', false, ['deriveBits'])
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('gestcon-puente|' + usuario), iterations: 150_000 }, base, 256)
+  return hex(bits)
+}
+
+/** Huella de una credencial: lo único que guarda el puente */
+export async function huellaDe(credencial: string): Promise<string> {
+  return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(credencial)))
+}
+
+/** Credencial común de la versión 1 del puente (solo para migrar a credenciales por usuario) */
+export async function credencialAntigua(claveDatos: Uint8Array): Promise<string> {
   const k = await crypto.subtle.importKey('raw', claveDatos as BufferSource, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   return hex(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode('gestcon-puente-v1')))
 }
+
+export interface Identidad { usuario: string; credencial: string }
 
 function aB64(d: Uint8Array): string {
   let s = ''
@@ -51,24 +68,20 @@ function mimeDe(nombre: string): string {
   return 'application/octet-stream'
 }
 
-export type EstadoPuente = 'ok' | 'sin_activar' | 'sin_permiso'
+export type EstadoPuente = 'ok' | 'sin_activar' | 'migrar' | 'sin_permiso'
 
-/** Carpeta de Drive a través del puente. «clave» da la clave de datos de la sesión (o null si aún no se ha entrado). */
+/** Carpeta de Drive a través del puente. La identidad (usuario y credencial) la comparten todas sus subcarpetas. */
 export class CarpetaPuente implements Carpeta {
   tipo = 'puente' as const
-  private credencial: { de: Uint8Array; valor: string } | null = null
 
-  constructor(public url: string, public nombre: string, private clave: () => Uint8Array | null, private ruta: string[] = []) {}
+  constructor(public url: string, public nombre: string, private sesion: { id: Identidad | null } = { id: null }, private ruta: string[] = []) {}
 
-  private async cred(): Promise<string | undefined> {
-    const c = this.clave()
-    if (!c) return undefined
-    if (this.credencial?.de !== c) this.credencial = { de: c, valor: await credencialDe(c) }
-    return this.credencial.valor
-  }
+  /** Usuario con el que se hacen las peticiones (null al cerrar la sesión) */
+  ponerIdentidad(id: Identidad | null) { this.sesion.id = id }
+  get identidad(): Identidad | null { return this.sesion.id }
 
   private async llamar<T>(op: string, extra: Record<string, unknown> = {}): Promise<T> {
-    const cuerpo = JSON.stringify({ op, ruta: this.ruta, credencial: await this.cred(), ...extra })
+    const cuerpo = JSON.stringify({ op, ruta: this.ruta, usuario: this.sesion.id?.usuario, credencial: this.sesion.id?.credencial, ...extra })
     let r: Response
     try {
       // text/plain: sin petición previa de CORS, que Apps Script no admite
@@ -88,21 +101,31 @@ export class CarpetaPuente implements Carpeta {
     return j as T
   }
 
-  /** ¿Acepta el puente la credencial de esta sesión? */
+  /** ¿Acepta el puente la identidad de esta sesión? */
   async estado(): Promise<EstadoPuente> {
     return (await this.llamar<{ estado: EstadoPuente }>('estado')).estado
   }
 
-  /** Registra la credencial de esta sesión con el código de activación (una sola vez) */
-  async activar(codigo: string): Promise<void> {
-    await this.llamar('activar', { codigo })
+  /** Registra al usuario de esta sesión como primer administrador: con el código de activación o migrando la versión 1 */
+  async activar(x: { codigo?: string; legado?: string }): Promise<void> {
+    await this.llamar('activar', x)
+  }
+
+  /** Da acceso a un usuario (huella de su credencial), se lo cambia o se lo quita (huella null) */
+  async acceso(objetivo: string, huella: string | null | undefined, admin?: boolean): Promise<void> {
+    await this.llamar('acceso', { objetivo, huella, admin })
+  }
+
+  /** Usuarios con acceso (solo administradores) */
+  async accesos(): Promise<{ usuario: string; admin: boolean }[]> {
+    return (await this.llamar<{ accesos: { usuario: string; admin: boolean }[] }>('accesos')).accesos
   }
 
   /** Subcarpetas que ya se sabe que existen (para no preguntarlo cada vez) */
   private static conocidas = new Set<string>()
 
   async sub(nombre: string, crear = true): Promise<Carpeta> {
-    const c = new CarpetaPuente(this.url, nombre, this.clave, [...this.ruta, nombre])
+    const c = new CarpetaPuente(this.url, nombre, this.sesion, [...this.ruta, nombre])
     const clave = this.url + '|' + c.ruta.join('/')
     if (CarpetaPuente.conocidas.has(clave)) return c
     const { existe } = await c.llamar<{ existe: boolean }>('carpeta', { crear })

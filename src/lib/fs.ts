@@ -106,6 +106,7 @@ export async function asegurarPermiso(h: Dir): Promise<boolean> {
 export type ConexionGuardada =
   | { tipo: 'local'; handle: Dir; nombre: string }
   | { tipo: 'drive'; id: string; nombre: string }
+  | { tipo: 'puente'; nombre: string }
 
 const BD = 'gestcon-app'
 const ALMACEN = 'kv'

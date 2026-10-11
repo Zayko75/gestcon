@@ -6,23 +6,26 @@
  * sin iniciar sesión en Google.
  *
  * Seguridad:
- *  - datos.sqlite está cifrado. Sin credencial solo se puede leer ese archivo cifrado (lo necesita la
- *    pantalla de entrada para comprobar el usuario y la contraseña) y nunca si estuviera sin cifrar.
- *  - Todo lo demás (guardar, plantillas, documentos, copias) exige una credencial que solo puede calcular
- *    quien ha entrado con una contraseña válida. El script guarda únicamente su huella (SHA-256).
- *  - La primera credencial se registra una sola vez con un código de activación de un solo uso.
+ *  - Cada usuario de GESTCON tiene su propia credencial en el puente, calculada en su navegador a partir de su
+ *    usuario y contraseña. El script solo guarda su huella (SHA-256).
+ *  - Sin una credencial válida no se entrega nada, ni siquiera el archivo cifrado.
+ *  - Los administradores dan de alta, cambian y retiran credenciales: un usuario eliminado o desactivado
+ *    deja de tener acceso al momento. Cada usuario puede cambiar la suya (al cambiar su contraseña).
+ *  - Arranque: mientras no hay ninguna credencial, se puede leer el archivo cifrado (para comprobar la
+ *    contraseña) y el primer administrador se registra con el código de activación, de un solo uso.
  *
- * Propiedades del script (las pone la función configurar):
+ * Propiedades del script (las pone la función configurar; ACCESOS lo mantiene la aplicación):
  *   CARPETA     id de la carpeta Patrocinios
- *   ACTIVACION  huella SHA-256 del código de activación (se borra al usarlo)
- *   CREDENCIAL  huella SHA-256 de la credencial (la pone la activación)
+ *   ACTIVACION  huella del código de activación (se borra al usarlo)
+ *   ACCESOS     {usuario: {h: huella de su credencial, admin: true|false}}
+ *   CREDENCIAL  (versión 1) huella de la credencial común; se sustituye por ACCESOS al migrar
  */
-var VERSION = 1;
+var VERSION = 2;
 var MAGIA = 'GESTCON1';
 var MIME_CARPETA = 'application/vnd.google-apps.folder';
 
 function doGet() {
-  return salida({ ok: true, app: 'gestcon-puente', version: VERSION, activado: !!prop('CREDENCIAL') });
+  return salida({ ok: true, app: 'gestcon-puente', version: VERSION });
 }
 
 function doPost(e) {
@@ -37,14 +40,23 @@ function doPost(e) {
 function atender(p) {
   var op = p.op;
   var ruta = p.ruta || [];
-  var publico = ruta.length === 0 && p.nombre === 'datos.sqlite' && (op === 'existe' || op === 'marca' || op === 'leer');
+  var accesos = leerAccesos();
+  var arranque = Object.keys(accesos).length === 0;
+  var yo = quien(accesos, p);
 
   if (op === 'estado') {
-    var h = prop('CREDENCIAL');
-    return { ok: true, version: VERSION, estado: !h ? 'sin_activar' : (p.credencial && huella(p.credencial) === h ? 'ok' : 'sin_permiso') };
+    var estado = yo ? 'ok' : !arranque ? 'sin_permiso' : prop('CREDENCIAL') ? 'migrar' : 'sin_activar';
+    return { ok: true, version: VERSION, estado: estado, admin: !!(yo && yo.admin) };
   }
-  if (op === 'activar') return activar(p);
-  if (!publico) comprobarCredencial(p.credencial);
+  if (op === 'activar') return activar(p, accesos);
+
+  // Mientras no hay ninguna credencial solo se puede leer el archivo cifrado (para comprobar la contraseña)
+  var publico = arranque && ruta.length === 0 && p.nombre === 'datos.sqlite' && (op === 'existe' || op === 'marca' || op === 'leer');
+  if (!yo && !publico) {
+    if (arranque) throw new Error('sin_activar: la conexión aún no está activada.');
+    Utilities.sleep(300);
+    throw new Error('sin_permiso: usuario o credencial no válidos.');
+  }
 
   switch (op) {
     case 'existe': {
@@ -61,7 +73,7 @@ function atender(p) {
     case 'leer': {
       var f2 = archivoObligatorio(ruta, p.nombre);
       var bytes = f2.getBlob().getBytes();
-      if (publico && !esCifrado(bytes)) comprobarCredencial(p.credencial); // nunca se entrega sin cifrar
+      if (!yo && !esCifrado(bytes)) throw new Error('sin_permiso: el archivo no está cifrado.');
       return { datos: Utilities.base64Encode(bytes), modificado: f2.getLastUpdated().getTime(), marca: marcaDe(f2) };
     }
     case 'escribir': return escribir(ruta, p.nombre, p.datos, p.mime);
@@ -79,35 +91,87 @@ function atender(p) {
       }
       return { archivos: out };
     }
+    case 'acceso': return cambiarAcceso(p, yo);
+    case 'accesos': {
+      if (!yo.admin) throw new Error('Solo un administrador puede ver los accesos.');
+      return { accesos: Object.keys(accesos).map(function (u) { return { usuario: u, admin: !!accesos[u].admin }; }) };
+    }
   }
   throw new Error('Operación desconocida: ' + op);
 }
 
-// ---------- Credencial ----------
-function activar(p) {
+// ---------- Accesos ----------
+function leerAccesos() {
+  try { return JSON.parse(prop('ACCESOS') || '{}'); } catch (e) { return {}; }
+}
+
+function guardarAccesos(a) {
+  PropertiesService.getScriptProperties().setProperty('ACCESOS', JSON.stringify(a));
+}
+
+/** El usuario que hace la petición, si su credencial es válida */
+function quien(accesos, p) {
+  var u = p.usuario && accesos[p.usuario];
+  if (!u || !p.credencial || huella(p.credencial) !== u.h) return null;
+  return { usuario: p.usuario, admin: !!u.admin };
+}
+
+/** Registra al primer administrador: con el código de activación o, al migrar de la versión 1, con la credencial común */
+function activar(p, accesos) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    var codigo = prop('ACTIVACION');
-    if (prop('CREDENCIAL') && !codigo) throw new Error('La conexión ya está activada.');
-    if (!codigo || !p.codigo || huella(String(p.codigo).toUpperCase().replace(/[^A-Z0-9]/g, '')) !== codigo) {
+    accesos = leerAccesos();
+    if (Object.keys(accesos).length) throw new Error('La conexión ya está activada.');
+    var codigo = prop('ACTIVACION'), antigua = prop('CREDENCIAL');
+    var vale = (codigo && p.codigo && huella(String(p.codigo).toUpperCase().replace(/[^A-Z0-9]/g, '')) === codigo) ||
+      (antigua && p.legado && huella(p.legado) === antigua);
+    if (!vale) {
       Utilities.sleep(800);
-      throw new Error('El código de activación no es correcto.');
+      throw new Error(p.legado ? 'No se pudo migrar la conexión.' : 'El código de activación no es correcto.');
     }
-    if (!p.credencial || String(p.credencial).length < 32) throw new Error('Credencial no válida.');
+    if (!p.usuario || !p.credencial || String(p.credencial).length < 32) throw new Error('Credencial no válida.');
+    accesos[p.usuario] = { h: huella(p.credencial), admin: true };
+    guardarAccesos(accesos);
     var props = PropertiesService.getScriptProperties();
-    props.setProperty('CREDENCIAL', huella(p.credencial));
     props.deleteProperty('ACTIVACION');
+    props.deleteProperty('CREDENCIAL');
     return { ok: true, estado: 'ok' };
   } finally {
     lock.releaseLock();
   }
 }
 
-function comprobarCredencial(c) {
-  var h = prop('CREDENCIAL');
-  if (!h) throw new Error('sin_activar: la conexión aún no está activada.');
-  if (!c || huella(c) !== h) throw new Error('sin_permiso: credencial no válida.');
+/**
+ * Alta, cambio o baja del acceso de un usuario.
+ *   objetivo: usuario; huella: huella de su credencial (null = quitar el acceso; sin indicar = no cambia); admin: true|false
+ * Un administrador puede cambiar cualquiera; cada usuario, solo la huella del suyo.
+ */
+function cambiarAcceso(p, yo) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var accesos = leerAccesos();
+    var obj = String(p.objetivo || '');
+    if (!obj) throw new Error('Falta el usuario.');
+    var propio = obj === yo.usuario;
+    if (!yo.admin && !(propio && p.huella && p.admin === undefined)) throw new Error('Solo un administrador puede cambiar el acceso de otros usuarios.');
+    if (p.huella === null) {
+      delete accesos[obj];
+    } else {
+      var actual = accesos[obj];
+      var h = p.huella || (actual && actual.h);
+      if (h) {
+        if (!/^[0-9a-f]{64}$/.test(h)) throw new Error('Huella no válida.');
+        accesos[obj] = { h: h, admin: p.admin === undefined ? !!(actual && actual.admin) : !!p.admin };
+      }
+    }
+    if (!Object.keys(accesos).some(function (u) { return accesos[u].admin; })) throw new Error('Tiene que quedar al menos un administrador con acceso.');
+    guardarAccesos(accesos);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------- Archivos ----------
@@ -191,7 +255,7 @@ function salida(o) {
 function configurar() {
   var props = PropertiesService.getScriptProperties();
   props.setProperty('CARPETA', '1dHN52Rhci30OrJJu9oObRyYbGAN0rESL');
-  if (!props.getProperty('CREDENCIAL')) props.setProperty('ACTIVACION', 'b6c66586a8f3ed7a468939afa5a2c60f3158241afa23bb5e201fdb85006fd9b3');
+  if (!props.getProperty('CREDENCIAL') && !props.getProperty('ACCESOS')) props.setProperty('ACTIVACION', 'b6c66586a8f3ed7a468939afa5a2c60f3158241afa23bb5e201fdb85006fd9b3');
   // Comprueba el acceso a Drive y a internet (así Google pide los permisos ahora)
   ScriptApp.getOAuthToken();
   UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/about?fields=user', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
@@ -201,5 +265,5 @@ function configurar() {
 /** Ejecutar una vez desde el editor para comprobar el acceso a la carpeta (y conceder los permisos) */
 function probar() {
   var d = DriveApp.getFolderById(prop('CARPETA'));
-  Logger.log('Carpeta: ' + d.getName() + ' · datos.sqlite: ' + (archivo(d, 'datos.sqlite') ? 'sí' : 'no') + ' · activado: ' + !!prop('CREDENCIAL'));
+  Logger.log('Carpeta: ' + d.getName() + ' · datos.sqlite: ' + (archivo(d, 'datos.sqlite') ? 'sí' : 'no') + ' · usuarios con acceso: ' + Object.keys(leerAccesos()).length);
 }

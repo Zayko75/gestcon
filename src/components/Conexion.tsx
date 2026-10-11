@@ -143,14 +143,7 @@ export function PantallaConexion() {
 
   return (
     <MarcoConexion>
-          {hayPuente && fase !== 'sin-bd' && fase !== 'cargando' ? (
-            <div className="space-y-5">
-              <h1 className="titulo">{fase === 'error' ? 'No se pueden abrir los datos' : 'Conectando…'}</h1>
-              {error && <p role="alert" className="rounded-lg border border-error/30 bg-error/[.06] px-4 py-3 text-[0.92rem] text-error">{error}</p>}
-              <p className="leading-relaxed text-tinta/70">Los datos están en la carpeta <strong>Patrocinios</strong> de Google Drive. Comprueba la conexión a internet y vuelve a intentarlo.</p>
-              <button className="btn-primario" onClick={reintentar}>Volver a intentar</button>
-            </div>
-          ) : fase === 'cargando' ? (
+          {fase === 'cargando' ? (
             hayPuente ? (
               <div role="status">
                 <h1 className="titulo">Conectando…</h1>
@@ -185,7 +178,7 @@ export function PantallaConexion() {
                 <p role="alert" className="rounded-lg border border-error/30 bg-error/[.06] px-4 py-3 text-[0.92rem] text-error">{error}</p>
               )}
 
-              {carpetaGuardada && (carpetaGuardada.tipo === 'drive' || local) && (
+              {carpetaGuardada && (carpetaGuardada.tipo === 'drive' ? !hayPuente : carpetaGuardada.tipo === 'local' && local) && (
                 <div className="rounded-xl border border-indigo/25 bg-white p-5">
                   <p className="text-[0.88rem] text-tinta/60">Última carpeta usada</p>
                   <button className="btn-primario mt-3 w-full !py-3 text-base" onClick={continuar}>
@@ -202,7 +195,12 @@ export function PantallaConexion() {
 
               <section className="space-y-4">
                 <h2 className="flex items-center gap-2.5 font-display text-[1.4rem] font-semibold"><IconoDrive /> Google Drive</h2>
-                <BloqueDrive />
+                {hayPuente ? (
+                  <>
+                    <p className="text-[0.92rem] text-tinta/65">Carpeta <strong className="font-semibold text-tinta/85">Patrocinios</strong> de Google Drive. Se entra solo con el usuario y la contraseña de GESTCON.</p>
+                    <button className="btn-primario" onClick={reintentar}><IconoDrive blanco /> Abrir los datos de Google Drive</button>
+                  </>
+                ) : <BloqueDrive />}
               </section>
 
               <div className="flex items-center gap-4 text-[0.85rem] text-tinta/45" aria-hidden="true">

@@ -34,7 +34,7 @@ function useEnvio() {
 const AYUDA_CLAVE = `Al menos ${LONGITUD_MINIMA} caracteres, con letras y números.`
 
 function Entrar() {
-  const { entrar, recuperarClave, nombreCarpeta, cambiarCarpeta, avisoAcceso, hayPuente } = useStore()
+  const { entrar, recuperarClave, nombreCarpeta, cambiarCarpeta, avisoAcceso, origen } = useStore()
   const [modo, setModo] = useState<'entrar' | 'recuperar'>('entrar')
   const [usuario, setUsuario] = useState(() => { try { return localStorage.getItem('gestcon-ultimo-usuario') ?? '' } catch { return '' } })
   const [clave, setClave] = useState('')
@@ -75,7 +75,7 @@ function Entrar() {
     <form className="space-y-5" onSubmit={enviar(async () => { recordar(); await entrar(usuario, clave) })}>
       <div>
         <h1 className="titulo">Entrar</h1>
-        <p className="mt-2 leading-relaxed text-tinta/65">{hayPuente ? 'Escribe tu usuario y contraseña de GESTCON.' : <>Carpeta <strong className="font-semibold text-tinta">{nombreCarpeta}</strong>. Escribe tu usuario y contraseña de GESTCON.</>}</p>
+        <p className="mt-2 leading-relaxed text-tinta/65">{origen === 'puente' ? 'Escribe tu usuario y contraseña de GESTCON.' : <>Carpeta <strong className="font-semibold text-tinta">{nombreCarpeta}</strong>. Escribe tu usuario y contraseña de GESTCON.</>}</p>
       </div>
       <MensajeError texto={error || avisoAcceso} />
       <Campo id="a-usuario" etiqueta="Usuario"><input id="a-usuario" className="campo" value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" autoFocus={!usuario} required /></Campo>
@@ -84,11 +84,10 @@ function Entrar() {
         <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Comprobando…' : 'Entrar'}</button>
         <button type="button" className="btn-texto" onClick={() => { setModo('recuperar'); setError('') }}>¿Has olvidado la contraseña?</button>
       </div>
-      {!hayPuente && (
-        <p className="border-t border-linea pt-4 text-[0.88rem] text-tinta/60">
-          ¿No es esta carpeta? <button type="button" className="font-medium text-indigo underline underline-offset-2" onClick={cambiarCarpeta}>Cambiar carpeta</button>
-        </p>
-      )}
+      <p className="border-t border-linea pt-4 text-[0.88rem] text-tinta/60">
+        {origen === 'puente' ? '¿Trabajas con una carpeta del ordenador o de la red?' : '¿No es esta carpeta?'}{' '}
+        <button type="button" className="font-medium text-indigo underline underline-offset-2" onClick={cambiarCarpeta}>Cambiar carpeta</button>
+      </p>
     </form>
   )
 }
