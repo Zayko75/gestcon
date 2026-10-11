@@ -11,7 +11,7 @@ export function Marca({ claro = false, grande = false }: { claro?: boolean; gran
   return (
     <span className={`flex items-center ${grande ? 'gap-4 lg:gap-5' : 'gap-3'}`}>
       <img src={logo} alt="" width={grande ? 96 : 48} height={grande ? 96 : 48} draggable={false}
-        className={`shrink-0 ${grande ? 'size-16 rounded-[15px] lg:size-24 lg:rounded-[22px]' : 'size-12 rounded-[11px]'} ${claro ? 'ring-1 ring-white/15' : 'shadow-[0_6px_14px_-6px_rgba(22,27,69,.6)]'}`} />
+        className={`shrink-0 ${grande ? 'size-16 rounded-[15px] lg:size-24 lg:rounded-[22px]' : 'size-12 rounded-[11px]'} ${claro ? '' : 'shadow-[0_6px_14px_-6px_rgba(22,27,69,.6)]'}`} />
       <span className="leading-none">
         <span className={`block font-display font-bold tracking-[0.02em] ${grande ? 'text-[1.9rem] lg:text-[2.6rem]' : 'text-[1.45rem]'}`}>GESTCON</span>
         <span className={`mt-1 block ${grande ? 'text-[0.9rem] lg:mt-1.5 lg:text-[1.05rem]' : 'text-[0.78rem]'} ${claro ? 'text-white/60' : 'text-tinta/55'}`}>Patrocinios deportivos</span>
