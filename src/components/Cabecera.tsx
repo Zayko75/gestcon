@@ -24,7 +24,10 @@ const IconoLista = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
 )
 const IconoReloj = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h3" /></svg>
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+)
+const IconoCalendario = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9.5h18M8 2.5v4M16 2.5v4M7 14h6M10 17.5h7" /></svg>
 )
 const IconoEntidades = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" /></svg>
@@ -71,6 +74,7 @@ export function Cabecera({ ruta }: { ruta: string }) {
         <nav className="flex gap-1 max-lg:order-3 max-lg:-mx-1 max-lg:w-full max-lg:overflow-x-auto lg:flex-col" aria-label="Secciones">
           {nav('#/', 'Patrocinios', <IconoLista />, ruta === '/' || ruta === '/nuevo' || ruta.startsWith('/registro'))}
           {nav('#/pendientes', <>Pendientes{urgentes > 0 && <span className="ml-auto rounded-full bg-[#ffc266] px-1.5 py-px text-[0.75rem] font-bold text-noche" aria-label={`${urgentes} urgentes`}>{urgentes}</span>}</>, <IconoReloj />, ruta === '/pendientes')}
+          {nav('#/calendario', 'Calendario', <IconoCalendario />, ruta === '/calendario')}
           {nav('#/entidades', 'Entidades', <IconoEntidades />, ruta.startsWith('/entidad'))}
           {nav('#/resumen', 'Resumen', <IconoResumen />, ruta === '/resumen')}
           {puede('administrar') && nav('#/usuarios', 'Usuarios', <IconoUsuarios />, ruta === '/usuarios')}

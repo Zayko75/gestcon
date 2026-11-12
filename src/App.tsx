@@ -4,6 +4,7 @@ import { Cabecera } from './components/Cabecera'
 import { PantallaConexion } from './components/Conexion'
 import { Copias } from './components/Copias'
 import { Entidades, FichaEntidad } from './components/Entidades'
+import { Calendario } from './components/Calendario'
 import { Pendientes } from './components/Pendientes'
 import { Resumen } from './components/Resumen'
 import { Usuarios } from './components/Usuarios'
@@ -80,6 +81,7 @@ function Contenido() {
   else if (ruta.startsWith('/copias') && puede('administrar')) pantalla = <Copias />
   else if (ruta === '/usuarios') pantalla = <Usuarios />
   else if (ruta === '/pendientes') pantalla = <Pendientes />
+  else if (ruta === '/calendario') pantalla = <Calendario />
   else if (ruta === '/resumen') pantalla = <Resumen />
   else if (ruta === '/entidades') pantalla = <Entidades />
   else if (/^\/entidad\/\d+$/.test(ruta)) pantalla = <FichaEntidad key={ruta} id={Number(ruta.split('/')[2])} />
