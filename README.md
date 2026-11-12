@@ -117,7 +117,7 @@ Patrocinios/
 
 **Exportar a Excel.** El botón *Exportar a Excel* del listado descarga un `.xlsx` con los patrocinios que se están viendo (todos o solo los filtrados), con todos sus datos, la cabecera fija, filtros en cada columna y una fila de totales.
 
-**Calendario.** Vista mensual con todos los eventos patrocinados: cada evento es una barra, del color de su estado, que ocupa del primer al último día. Al pasar el ratón por un día (o llegar con el teclado) se ven sus eventos; al pulsarlo quedan fijos en el panel lateral, con enlace a cada ficha. La leyenda de estados sirve también de filtro. Las flechas del teclado mueven de día en día y *Hoy* vuelve al mes actual. Los patrocinios sin fecha de evento no aparecen (se indica cuántos son).
+**Calendario.** Vista mensual con todos los eventos patrocinados: cada evento es una barra, del color de su estado, que ocupa del primer al último día. Al pulsar un día (o llegar a él con las flechas del teclado) sus eventos aparecen en el panel lateral, con enlace a cada ficha. La leyenda de estados sirve también de filtro. Las flechas del teclado mueven de día en día y *Hoy* vuelve al mes actual. Los patrocinios sin fecha de evento no aparecen (se indica cuántos son).
 
 **Pendientes.** Reúne lo que queda por hacer en los expedientes no tramitados. El número junto a *Pendientes* en el menú cuenta los dos primeros grupos:
 - *Firmar antes del evento*: en preparación o pendientes de firma, con el evento en los próximos 30 días o ya celebrado.

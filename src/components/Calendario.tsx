@@ -77,7 +77,6 @@ export function Calendario() {
   useEffect(() => { try { sessionStorage.setItem(CLAVE_MES, mes) } catch { /* sin almacenamiento */ } }, [mes])
   const [ocultos, setOcultos] = useState<Estado[]>([])
   const [elegido, setElegido] = useState<string>(() => (hoy.startsWith(mes) ? hoy : `${mes}-01`))
-  const [encima, setEncima] = useState<{ dia: string; caja: DOMRect } | null>(null)
   const [foco, setFoco] = useState<string | null>(null)
   const rejilla = useRef<HTMLDivElement>(null)
 
@@ -102,9 +101,8 @@ export function Calendario() {
     const nuevo = iso(d).slice(0, 7)
     setMes(nuevo)
     setElegido(hoy.startsWith(nuevo) ? hoy : `${nuevo}-01`)
-    setEncima(null)
   }
-  const irHoy = () => { setMes(hoy.slice(0, 7)); setElegido(hoy); setEncima(null) }
+  const irHoy = () => { setMes(hoy.slice(0, 7)); setElegido(hoy) }
 
   // Con el teclado: flechas para moverse entre días (cambiando de mes si hace falta)
   const mover = (e: KE<HTMLButtonElement>, dia: string) => {
@@ -122,13 +120,11 @@ export function Calendario() {
     setFoco(null)
   }, [foco, mes])
 
-  const mostrar = (dia: string, el: HTMLElement) => setEncima({ dia, caja: el.getBoundingClientRect() })
-
   return (
     <main className="mx-auto max-w-[88rem] px-4 pb-16 pt-7 sm:px-8 lg:pt-10">
       <h1 className="titulo">Calendario</h1>
       <p className="mt-2 max-w-2xl text-tinta/65">
-        Los eventos patrocinados, del primer al último día. Pasa el ratón por un día para ver sus eventos, o púlsalo para dejarlos fijos al lado.
+        Los eventos patrocinados, del primer al último día. Pulsa un día para ver sus eventos al lado.
       </p>
 
       {/* Mes y navegación */}
@@ -171,7 +167,7 @@ export function Calendario() {
 
       <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         {/* Rejilla del mes */}
-        <div ref={rejilla} className="overflow-hidden rounded-xl border border-linea bg-white" onMouseLeave={() => setEncima(null)}>
+        <div ref={rejilla} className="overflow-hidden rounded-xl border border-linea bg-white">
           <div className="grid grid-cols-7 border-b border-linea bg-papel/70 text-center text-[0.8rem] font-semibold text-tinta/55" aria-hidden="true">
             {DIAS_CORTOS.map((d, i) => <div key={d} className={`py-2 ${i > 4 ? 'text-tinta/40' : ''}`}>{d}</div>)}
           </div>
@@ -193,9 +189,6 @@ export function Calendario() {
                       aria-pressed={sel}
                       aria-label={`${fechaLarga(dia)}: ${lista.length === 0 ? 'sin eventos' : lista.length === 1 ? '1 evento' : `${lista.length} eventos`}`}
                       onClick={() => { setElegido(dia); if (fuera) setMes(dia.slice(0, 7)) }}
-                      onPointerEnter={(e) => { if (e.pointerType === 'mouse') { if (lista.length) mostrar(dia, e.currentTarget); else setEncima(null) } }}
-                      onFocus={(e) => { if (lista.length && e.currentTarget.matches(':focus-visible')) mostrar(dia, e.currentTarget) }}
-                      onBlur={() => setEncima(null)}
                       onKeyDown={(e) => mover(e, dia)}
                       className={`relative flex h-[6.9rem] flex-col items-start border-r border-linea p-1.5 text-left outline-none transition-colors last:border-r-0 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo sm:h-[8.3rem] sm:p-2
                         ${i > 4 ? 'bg-papel/45' : ''} ${sel ? '!bg-indigo-claro/70' : 'hover:bg-indigo-claro/35'}`}>
@@ -243,7 +236,6 @@ export function Calendario() {
         </p>
       )}
 
-      {encima && delDia(encima.dia).length > 0 && <Tarjeta dia={encima.dia} caja={encima.caja} lista={delDia(encima.dia)} />}
     </main>
   )
 }
@@ -284,32 +276,5 @@ function PanelDia({ dia, lista }: { dia: string; lista: Evento[] }) {
         ? <p className="px-4 py-6 text-[0.92rem] text-tinta/55">Ningún evento patrocinado este día. Elige otro día en el calendario.</p>
         : <ul className="max-h-[34rem] divide-y divide-linea/70 overflow-y-auto p-1.5">{lista.map((e) => <li key={e.r.id}><LineaEvento e={e} enlace /></li>)}</ul>}
     </aside>
-  )
-}
-
-/** Tarjeta flotante al pasar el ratón (o el foco) por un día */
-function Tarjeta({ dia, caja, lista }: { dia: string; caja: DOMRect; lista: Evento[] }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const an = el.offsetWidth, al = el.offsetHeight, m = 8
-    // Debajo del día si cabe; si no, encima. Pegada al día y dentro de la ventana.
-    let top = caja.bottom + 6
-    if (top + al > window.innerHeight - m) top = Math.max(m, caja.top - al - 6)
-    let left = caja.left + caja.width / 2 - an / 2
-    left = Math.min(Math.max(m, left), window.innerWidth - an - m)
-    setPos({ top, left })
-  }, [caja, dia, lista.length])
-  const vistos = lista.slice(0, 4)
-  return (
-    <div ref={ref} role="tooltip"
-      className="pointer-events-none fixed z-40 w-[20rem] max-w-[calc(100vw-1rem)] rounded-xl border border-linea bg-white p-3 shadow-[0_18px_44px_-18px_rgba(22,27,69,.45)]"
-      style={pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }}>
-      <p className="px-1 font-display text-[1.15rem] font-semibold leading-tight">{mayus(fechaLarga(dia))}</p>
-      <div className="mt-1 divide-y divide-linea/70">{vistos.map((e) => <LineaEvento key={e.r.id} e={e} enlace={false} />)}</div>
-      {lista.length > vistos.length && <p className="px-1 pt-2 text-[0.82rem] font-medium text-tinta/60">y {lista.length - vistos.length} más: pulsa el día para verlos todos</p>}
-    </div>
   )
 }
