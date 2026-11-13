@@ -259,6 +259,7 @@ export function migrar(db: Database): InformeMigracion | null {
     if (desde < 3) migrarA3(db, informe)
     if (desde < 4) migrarA4(db)
     if (desde < 5) migrarA5(db)
+    if (desde < 6) informe.pagados = migrarA6(db)
     db.exec(`INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','${VERSION_ESQUEMA}')
              ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor`)
     db.exec(`PRAGMA user_version = ${VERSION_ESQUEMA}`)
@@ -291,6 +292,16 @@ function migrarA5(db: Database): void {
   db.exec('ALTER TABLE patrocinios_v5 RENAME TO patrocinios')
   db.run("UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name='patrocinios'", [secuencia])
   db.exec(DISPARADORES_SQL)
+}
+
+/**
+ * Versión 5 → 6: los patrocinios de años anteriores a 2026 pasan a «Pagado» (decisión del usuario, 13/11/2026).
+ * El año es la anualidad o, si no la tiene, el de la fecha de inicio del evento. Devuelve cuántos cambian.
+ */
+function migrarA6(db: Database): number {
+  db.exec(`UPDATE patrocinios SET estado = 'pagado', modificado = datetime('now'), modificado_por = 'Actualización de GESTCON'
+    WHERE estado <> 'pagado' AND COALESCE(anualidad, CAST(substr(fecha_inicio, 1, 4) AS INTEGER)) < 2026`)
+  return Number(db.exec('SELECT changes()')[0].values[0][0])
 }
 
 /** Versión 3 → 4: llaves de cifrado. Las contraseñas de la versión 3 no sirven para cifrar: hay que ponerlas de nuevo. */

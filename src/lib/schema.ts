@@ -1,7 +1,7 @@
-// Esquema de datos.sqlite (versión 5: estados «pendiente de factura» y «pagado»). Se usa al crear una base de datos vacía y en la migración desde la versión 1.
+// Esquema de datos.sqlite (versión 6; la 5 añadió los estados «pendiente de factura» y «pagado» y la 6 marcó como pagados los años anteriores a 2026). Se usa al crear una base de datos vacía y en la migración desde la versión 1.
 // Copia legible en docs/esquema.sql.
 
-export const VERSION_ESQUEMA = 5
+export const VERSION_ESQUEMA = 6
 
 export const ESTADOS = ['preparacion', 'pendiente_firma', 'firmado', 'pendiente_factura', 'tramitado', 'pagado'] as const
 

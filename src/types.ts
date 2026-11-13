@@ -72,6 +72,8 @@ export interface InformeMigracion {
   usuarios?: boolean
   entidades: number
   fechasDeducidas: number
+  /** Versión 6: patrocinios de años anteriores a 2026 marcados como pagados */
+  pagados?: number
   cambiosTexto: { id: number; campo: string; antes: string; despues: string }[]
 }
 
