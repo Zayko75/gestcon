@@ -258,6 +258,7 @@ export function migrar(db: Database): InformeMigracion | null {
     if (desde < 2) migrarA2(db, informe)
     if (desde < 3) migrarA3(db, informe)
     if (desde < 4) migrarA4(db)
+    if (desde < 5) migrarA5(db)
     db.exec(`INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','${VERSION_ESQUEMA}')
              ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor`)
     db.exec(`PRAGMA user_version = ${VERSION_ESQUEMA}`)
@@ -270,6 +271,26 @@ export function migrar(db: Database): InformeMigracion | null {
   }
   db.exec('VACUUM') // compacta el archivo
   return informe
+}
+
+/**
+ * Versión 4 → 5: estados nuevos «pendiente de factura» y «pagado». SQLite no permite cambiar la condición
+ * CHECK de una columna, así que se rehace la tabla de patrocinios con los mismos datos e ids.
+ */
+function migrarA5(db: Database): void {
+  const secuencia = filas<{ seq: number }>(db, "SELECT seq FROM sqlite_sequence WHERE name='patrocinios'")[0]?.seq ?? 0
+  const antes = filas<{ name: string }>(db, 'PRAGMA table_info(patrocinios)').map((c) => c.name)
+  db.exec(tablasSQL('patrocinios_v5'))
+  const nuevas = new Set(filas<{ name: string }>(db, 'PRAGMA table_info(patrocinios_v5)').map((c) => c.name))
+  const columnas = antes.filter((c) => nuevas.has(c)).join(', ')
+  db.exec(`INSERT INTO patrocinios_v5 (${columnas}) SELECT ${columnas} FROM patrocinios ORDER BY id`)
+  const n0 = Number(db.exec('SELECT COUNT(*) FROM patrocinios')[0].values[0][0])
+  const n1 = Number(db.exec('SELECT COUNT(*) FROM patrocinios_v5')[0].values[0][0])
+  if (n0 !== n1) throw new Error(`se copiaron ${n1} de ${n0} patrocinios`)
+  db.exec('DROP TABLE patrocinios')
+  db.exec('ALTER TABLE patrocinios_v5 RENAME TO patrocinios')
+  db.run("UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name='patrocinios'", [secuencia])
+  db.exec(DISPARADORES_SQL)
 }
 
 /** Versión 3 → 4: llaves de cifrado. Las contraseñas de la versión 3 no sirven para cifrar: hay que ponerlas de nuevo. */

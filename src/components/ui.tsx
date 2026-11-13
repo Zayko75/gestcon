@@ -54,7 +54,9 @@ export const ESTADOS: { valor: Estado; texto: string }[] = [
   { valor: 'preparacion', texto: 'En preparación' },
   { valor: 'pendiente_firma', texto: 'Pendiente de firma' },
   { valor: 'firmado', texto: 'Firmado' },
+  { valor: 'pendiente_factura', texto: 'Pendiente de factura' },
   { valor: 'tramitado', texto: 'Tramitado' },
+  { valor: 'pagado', texto: 'Pagado' },
 ]
 export const textoEstado = (e: Estado) => ESTADOS.find((x) => x.valor === e)?.texto ?? e
 
@@ -62,7 +64,19 @@ const COLOR_ESTADO: Record<Estado, string> = {
   preparacion: 'bg-aviso/10 text-aviso [--punto:theme(colors.aviso)]',
   pendiente_firma: 'bg-indigo-claro text-indigo [--punto:theme(colors.indigo.DEFAULT)]',
   firmado: 'bg-[#e3f1f6] text-[#0f6283] [--punto:#0f6283]',
+  pendiente_factura: 'bg-[#f8e6f0] text-[#8c2a66] [--punto:#a3367a]',
   tramitado: 'bg-ok/10 text-ok [--punto:theme(colors.ok)]',
+  pagado: 'bg-[#eceef2] text-[#3d4455] [--punto:#5b6478]',
+}
+
+/** Colores de cada estado para marcas de color (calendario, eventos) */
+export const TONO_ESTADO: Record<Estado, { barra: string; fondo: string; texto: string }> = {
+  preparacion: { barra: '#a85f00', fondo: '#fbefdf', texto: '#6f4000' },
+  pendiente_firma: { barra: '#2c3487', fondo: '#e7e9f6', texto: '#1f2566' },
+  firmado: { barra: '#0f6283', fondo: '#e0f0f6', texto: '#0b4a63' },
+  pendiente_factura: { barra: '#a3367a', fondo: '#f8e6f0', texto: '#7a2259' },
+  tramitado: { barra: '#1e7a52', fondo: '#e0f1e8', texto: '#145a3b' },
+  pagado: { barra: '#5b6478', fondo: '#eceef2', texto: '#3d4455' },
 }
 
 export function EstadoChip({ estado }: { estado: Estado }) {

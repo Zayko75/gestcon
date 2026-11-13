@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as KE } from 'react'
-import { diasEntre, hoyISO, municipiosConNombre } from '../lib/control'
+import { hoyISO, municipiosConNombre } from '../lib/control'
 import { eur } from '../lib/format'
 import { useStore } from '../lib/store'
 import type { Estado, Patrocinio } from '../types'
-import { ESTADOS, EstadoChip } from './ui'
+import { ESTADOS, EstadoChip, TONO_ESTADO } from './ui'
 
 // ---------- Fechas ----------
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -24,13 +24,7 @@ function rango(a: string, b: string): string {
   return `del ${x.getDate()} de ${MESES[x.getMonth()]} al ${y.getDate()} de ${MESES[y.getMonth()]}${x.getFullYear() !== y.getFullYear() ? ` de ${y.getFullYear()}` : ''}`
 }
 
-/** Colores de cada estado para las barras de los eventos */
-const TONO: Record<Estado, { barra: string; fondo: string; texto: string }> = {
-  preparacion: { barra: '#a85f00', fondo: '#fbefdf', texto: '#6f4000' },
-  pendiente_firma: { barra: '#2c3487', fondo: '#e7e9f6', texto: '#1f2566' },
-  firmado: { barra: '#0f6283', fondo: '#e0f0f6', texto: '#0b4a63' },
-  tramitado: { barra: '#1e7a52', fondo: '#e0f1e8', texto: '#145a3b' },
-}
+const TONO = TONO_ESTADO
 
 interface Evento { r: Patrocinio; desde: string; hasta: string }
 
@@ -47,22 +41,6 @@ function eventosDe(registros: Patrocinio[]): { eventos: Evento[]; sinFecha: numb
   }
   eventos.sort((a, b) => a.desde.localeCompare(b.desde) || b.hasta.localeCompare(a.hasta) || a.r.entidad.localeCompare(b.r.entidad))
   return { eventos, sinFecha }
-}
-
-/** Reparte los eventos de una semana en carriles para que las barras no se pisen */
-function carriles(semana: string, eventos: Evento[]) {
-  const fin = sumar(semana, 6)
-  const tramos: { ev: Evento; c0: number; c1: number; carril: number; sigueAntes: boolean; sigueDespues: boolean }[] = []
-  const ocupado: number[] = [] // última columna ocupada en cada carril
-  for (const ev of eventos) {
-    if (ev.hasta < semana || ev.desde > fin) continue
-    const c0 = Math.max(0, diasEntre(semana, ev.desde))
-    const c1 = Math.min(6, diasEntre(semana, ev.hasta))
-    let carril = ocupado.findIndex((u) => u < c0)
-    if (carril < 0) { carril = ocupado.length; ocupado.push(c1) } else ocupado[carril] = c1
-    tramos.push({ ev, c0, c1, carril, sigueAntes: ev.desde < semana, sigueDespues: ev.hasta > fin })
-  }
-  return tramos
 }
 
 const CLAVE_MES = 'gestcon-calendario-mes'
@@ -91,8 +69,9 @@ export function Calendario() {
   const semanas: string[] = []
   for (let s = inicio; s <= ultimo; s = sumar(s, 7)) semanas.push(s)
 
-  const delDia = (dia: string) => eventos.filter((e) => e.desde <= dia && e.hasta >= dia)
-  const delMes = todos.filter((e) => e.hasta >= primero && e.desde <= ultimo)
+  // Cada evento aparece solo el día en que empieza
+  const delDia = (dia: string) => eventos.filter((e) => e.desde === dia)
+  const delMes = todos.filter((e) => e.desde >= primero && e.desde <= ultimo)
   const visiblesMes = delMes.filter((e) => !ocultos.includes(e.r.estado))
   const cuenta = (estado: Estado) => delMes.filter((e) => e.r.estado === estado).length
 
@@ -124,7 +103,7 @@ export function Calendario() {
     <main className="mx-auto max-w-[88rem] px-4 pb-16 pt-7 sm:px-8 lg:pt-10">
       <h1 className="titulo">Calendario</h1>
       <p className="mt-2 max-w-2xl text-tinta/65">
-        Los eventos patrocinados, del primer al último día. Pulsa un día para ver sus eventos al lado.
+        Cada evento patrocinado aparece el día en que empieza. Pulsa un día para ver sus eventos al lado.
       </p>
 
       {/* Mes y navegación */}
@@ -172,22 +151,21 @@ export function Calendario() {
             {DIAS_CORTOS.map((d, i) => <div key={d} className={`py-2 ${i > 4 ? 'text-tinta/40' : ''}`}>{d}</div>)}
           </div>
           {semanas.map((semana) => {
-            const tramos = carriles(semana, eventos)
             const MAX = 3
             return (
-              <div key={semana} className="relative grid grid-cols-7 border-b border-linea last:border-b-0 [--paso:1.32rem] [--top:2.25rem] sm:[--paso:1.5rem] sm:[--top:2.45rem]">
+              <div key={semana} className="grid grid-cols-7 border-b border-linea last:border-b-0">
                 {Array.from({ length: 7 }, (_, i) => {
                   const dia = sumar(semana, i)
                   const fuera = dia.slice(0, 7) !== mes
                   const lista = delDia(dia)
-                  const ocultosDia = tramos.filter((t) => t.carril >= MAX && t.c0 <= i && t.c1 >= i).length
+                  const ocultosDia = Math.max(0, lista.length - MAX)
                   const esHoy = dia === hoy
                   const sel = dia === elegido
                   return (
                     <button key={dia} type="button" data-dia={dia}
                       tabIndex={sel && !fuera ? 0 : -1}
                       aria-pressed={sel}
-                      aria-label={`${fechaLarga(dia)}: ${lista.length === 0 ? 'sin eventos' : lista.length === 1 ? '1 evento' : `${lista.length} eventos`}`}
+                      aria-label={`${fechaLarga(dia)}: ${lista.length === 0 ? 'no empieza ningún evento' : lista.length === 1 ? 'empieza 1 evento' : `empiezan ${lista.length} eventos`}`}
                       onClick={() => { setElegido(dia); if (fuera) setMes(dia.slice(0, 7)) }}
                       onKeyDown={(e) => mover(e, dia)}
                       className={`relative flex h-[6.9rem] flex-col items-start border-r border-linea p-1.5 text-left outline-none transition-colors last:border-r-0 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo sm:h-[8.3rem] sm:p-2
@@ -196,29 +174,22 @@ export function Calendario() {
                         ${esHoy ? 'bg-noche text-white' : fuera ? 'text-tinta/30' : 'text-tinta/80'}`}>
                         {deIso(dia).getDate()}
                       </span>
+                      {/* Eventos que empiezan este día */}
+                      <span className={`mt-1 flex w-full flex-col gap-[3px] sm:gap-1 ${fuera ? 'opacity-50' : ''}`} aria-hidden="true">
+                        {lista.slice(0, MAX).map((e) => {
+                          const t = TONO[e.r.estado]
+                          return (
+                            <span key={e.r.id} className="flex h-[0.42rem] w-full items-center gap-1 overflow-hidden rounded-[4px] sm:h-[1.3rem] sm:px-1.5"
+                              style={{ background: t.fondo, color: t.texto, boxShadow: `inset 3px 0 0 ${t.barra}` }}>
+                              <span className="min-w-0 flex-1 truncate text-[0.76rem] font-semibold leading-none max-sm:hidden">{e.r.entidad || e.r.evento || 'Sin entidad'}</span>
+                            </span>
+                          )
+                        })}
+                      </span>
                       {ocultosDia > 0 && (
-                        <span className="absolute bottom-1 left-1.5 text-[0.72rem] font-semibold leading-none text-tinta/60 sm:bottom-1.5 sm:left-2">+{ocultosDia} más</span>
+                        <span className="mt-auto text-[0.72rem] font-semibold leading-none text-tinta/60">+{ocultosDia} más</span>
                       )}
                     </button>
-                  )
-                })}
-                {/* Barras de los eventos (no capturan el ratón: el día de debajo responde) */}
-                {tramos.filter((t) => t.carril < MAX).map((t) => {
-                  const tono = TONO[t.ev.r.estado]
-                  const fueraMes = t.ev.hasta < primero || t.ev.desde > ultimo
-                  return (
-                    <span key={t.ev.r.id + '-' + semana} aria-hidden="true"
-                      className={`pointer-events-none absolute flex h-[1.15rem] items-center overflow-hidden whitespace-nowrap px-1.5 text-[0.72rem] font-semibold leading-none sm:h-[1.3rem] sm:text-[0.76rem]
-                        ${t.sigueAntes ? '' : 'rounded-l-[5px]'} ${t.sigueDespues ? '' : 'rounded-r-[5px]'} ${fueraMes ? 'opacity-45' : ''}`}
-                      style={{
-                        top: `calc(var(--top) + ${t.carril} * var(--paso))`,
-                        left: `calc(${(t.c0 * 100) / 7}% + ${t.sigueAntes ? 0 : 4}px)`,
-                        width: `calc(${((t.c1 - t.c0 + 1) * 100) / 7}% - ${(t.sigueAntes ? 0 : 4) + (t.sigueDespues ? 0 : 4)}px)`,
-                        background: tono.fondo, color: tono.texto,
-                        boxShadow: t.sigueAntes ? undefined : `inset 3px 0 0 ${tono.barra}`,
-                      }}>
-                      <span className="truncate max-sm:hidden">{t.ev.r.entidad || t.ev.r.evento || 'Sin entidad'}</span>
-                    </span>
                   )
                 })}
               </div>
@@ -240,7 +211,7 @@ export function Calendario() {
   )
 }
 
-/** Datos de un evento, en el panel y en la tarjeta */
+/** Datos de un evento en el panel del día */
 function LineaEvento({ e, enlace }: { e: Evento; enlace: boolean }) {
   const tono = TONO[e.r.estado]
   const municipios = municipiosConNombre(e.r.municipios).map((x) => x.nombre).join(', ')
@@ -267,13 +238,13 @@ function LineaEvento({ e, enlace }: { e: Evento; enlace: boolean }) {
 
 function PanelDia({ dia, lista }: { dia: string; lista: Evento[] }) {
   return (
-    <aside className="rounded-xl border border-linea bg-white xl:sticky xl:top-6" aria-live="polite" aria-label="Eventos del día elegido">
+    <aside className="rounded-xl border border-linea bg-white xl:sticky xl:top-6" aria-live="polite" aria-label="Eventos que empiezan el día elegido">
       <div className="border-b border-linea px-4 py-3.5">
         <h2 className="font-display text-[1.5rem] font-semibold leading-tight">{mayus(fechaLarga(dia))}</h2>
-        <p className="mt-0.5 text-[0.86rem] text-tinta/55">{lista.length === 0 ? 'Sin eventos' : lista.length === 1 ? '1 evento' : `${lista.length} eventos`}</p>
+        <p className="mt-0.5 text-[0.86rem] text-tinta/55">{lista.length === 0 ? 'No empieza ningún evento' : lista.length === 1 ? 'Empieza 1 evento' : `Empiezan ${lista.length} eventos`}</p>
       </div>
       {lista.length === 0
-        ? <p className="px-4 py-6 text-[0.92rem] text-tinta/55">Ningún evento patrocinado este día. Elige otro día en el calendario.</p>
+        ? <p className="px-4 py-6 text-[0.92rem] text-tinta/55">Ningún evento patrocinado empieza este día. Elige otro día en el calendario.</p>
         : <ul className="max-h-[34rem] divide-y divide-linea/70 overflow-y-auto p-1.5">{lista.map((e) => <li key={e.r.id}><LineaEvento e={e} enlace /></li>)}</ul>}
     </aside>
   )

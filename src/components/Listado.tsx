@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { municipiosConNombre, municipiosDe, sinIva } from '../lib/control'
+import { municipiosConNombre, municipiosDe, sinIva, estaTramitado } from '../lib/control'
 import { descargar, libroExcel, TIPO_XLSX, type Columna } from '../lib/excel'
 import { eur, fechaES, parseImporte } from '../lib/format'
 import { useStore } from '../lib/store'
@@ -83,7 +83,7 @@ export function Listado() {
     const termino = sinTildes(q.trim())
     const encontrados = registros.filter((r) => {
       if (anio && String(r.anualidad) !== anio) return false
-      if (estado === 'sin_tramitar' && r.estado === 'tramitado') return false
+      if (estado === 'sin_tramitar' && estaTramitado(r.estado)) return false
       if (estado && estado !== 'sin_tramitar' && r.estado !== estado) return false
       if (mun && !municipiosDe(r.municipios).includes(mun)) return false
       if (f.aplicacion && r.aplicacion.trim() !== f.aplicacion) return false
@@ -105,7 +105,7 @@ export function Listado() {
     })
   }, [registros, q, anio, estado, orden, f])
 
-  const pendientes = registros.filter((r) => r.estado !== 'tramitado').length
+  const pendientes = registros.filter((r) => !estaTramitado(r.estado)).length
   const filtrado = q.trim() !== '' || anio !== '' || estado !== '' || nFiltrosExtra > 0
   const quitarFiltros = () => { setQ(''); setAnio(''); setEstado(''); setF(SIN_FILTROS) }
 

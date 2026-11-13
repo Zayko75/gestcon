@@ -117,7 +117,11 @@ Patrocinios/
 
 **Exportar a Excel.** El botón *Exportar a Excel* del listado descarga un `.xlsx` con los patrocinios que se están viendo (todos o solo los filtrados), con todos sus datos, la cabecera fija, filtros en cada columna y una fila de totales.
 
-**Calendario.** Vista mensual con todos los eventos patrocinados: cada evento es una barra, del color de su estado, que ocupa del primer al último día. Al pulsar un día (o llegar a él con las flechas del teclado) sus eventos aparecen en el panel lateral, con enlace a cada ficha. La leyenda de estados sirve también de filtro. Las flechas del teclado mueven de día en día y *Hoy* vuelve al mes actual. Los patrocinios sin fecha de evento no aparecen (se indica cuántos son).
+**Calendario.** Vista mensual con todos los eventos patrocinados: cada evento aparece solo el día en que empieza, con el color de su estado (hasta tres por día y «+N más»). Al pulsar un día (o llegar a él con las flechas del teclado) los eventos que empiezan ese día aparecen en el panel lateral, con sus fechas de inicio y fin y enlace a cada ficha. La leyenda de estados sirve también de filtro. Las flechas del teclado mueven de día en día y *Hoy* vuelve al mes actual. Los patrocinios sin fecha de evento no aparecen (se indica cuántos son).
+
+**Eventos.** Dos listas:
+- *Celebrándose ahora*: los eventos que ya han empezado y aún no han terminado, con el día en que van («Día 3 de 9») y cuándo terminan.
+- *Terminados sin pagar*: los eventos que ya terminaron y cuyo expediente no está en *Pagado* (falta la factura de la entidad o el pago), los que más tiempo llevan esperando primero, con los días transcurridos, el importe total y un filtro por estado. El número junto a *Eventos* en el menú los cuenta.
 
 **Pendientes.** Reúne lo que queda por hacer en los expedientes no tramitados. El número junto a *Pendientes* en el menú cuenta los dos primeros grupos:
 - *Firmar antes del evento*: en preparación o pendientes de firma, con el evento en los próximos 30 días o ya celebrado.
@@ -139,7 +143,7 @@ Patrocinios/
   - *Ver cambios* muestra los cambios de esta sesión con el valor anterior y el nuevo; *Deshacer hasta aquí* deja la ficha como estaba antes de ese cambio.
   - Si otro usuario ha cambiado después ese mismo campo, no se pisa su cambio: se avisa.
   - Se recuerda mientras la pestaña está abierta (también al ir a otras fichas y volver). Al cerrar la pestaña o la sesión se olvida.
-- **Estado del expediente**: En preparación, Pendiente de firma, Firmado o Tramitado. En el listado, «Pendientes» son todos los que aún no están tramitados.
+- **Estado del expediente**, en este orden: En preparación, Pendiente de firma, Firmado, Pendiente de factura, Tramitado y Pagado. En el listado, «Pendientes» son los que aún no están tramitados (ni pagados). Desde Firmado, el importe cuenta como gasto en firme en el resumen de crédito.
 - **Entidad**: en un patrocinio nuevo, al elegir una entidad que ya ha tenido patrocinios se rellenan su CIF, representante, DNI/NIE, teléfono y email. Cada patrocinio guarda su propia copia de esos datos, que es la que se imprime.
 - **Anualidad**: un patrocinio nuevo empieza con el año en curso y la aplicación `año/1301/3411/22608`. Al cambiar la anualidad cambia también el año de la aplicación; si no coinciden, se avisa.
 - **DNI/NIE** y **Aplicación presupuestaria** tienen máscara: los puntos, guiones y barras se ponen solos (`12.345.678-Z`, `X-1234567-L`, `2026/1301/3411/22608`). Si la letra del DNI/NIE no corresponde al número, se avisa.

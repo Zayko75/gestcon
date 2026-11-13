@@ -1,4 +1,4 @@
-export type Estado = 'preparacion' | 'pendiente_firma' | 'firmado' | 'tramitado'
+export type Estado = 'preparacion' | 'pendiente_firma' | 'firmado' | 'pendiente_factura' | 'tramitado' | 'pagado'
 
 export interface Patrocinio {
   id: number

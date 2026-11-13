@@ -1,4 +1,4 @@
--- GESTCON · esquema SQLite, versión 4 (generado desde src/lib/schema.ts)
+-- GESTCON · esquema SQLite, versión 5 (generado desde src/lib/schema.ts)
 -- El archivo se guarda cifrado (ver src/lib/cifrado.ts). La aplicación actualiza sola las versiones anteriores, con copia previa.
 
 -- Entidades patrocinadas: una por CIF. Sus datos sirven para rellenar nuevos patrocinios.
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS entidades (
 CREATE TABLE patrocinios (
   id                     INTEGER PRIMARY KEY AUTOINCREMENT,
   estado                 TEXT NOT NULL DEFAULT 'preparacion'
-                         CHECK (estado IN ('preparacion','pendiente_firma','firmado','tramitado')),
+                         CHECK (estado IN ('preparacion','pendiente_firma','firmado','pendiente_factura','tramitado','pagado')),
   entidad_id             INTEGER REFERENCES entidades(id) ON DELETE SET NULL,
   -- Entidad
   entidad                TEXT NOT NULL DEFAULT '',
@@ -107,6 +107,6 @@ BEGIN
   UPDATE patrocinios SET modificado = datetime('now') WHERE id = NEW.id;
 END;
 
-INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','4'), ('tipo_iva','21');
-PRAGMA user_version = 4;
+INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','5'), ('tipo_iva','21');
+PRAGMA user_version = 5;
 

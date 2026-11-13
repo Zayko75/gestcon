@@ -5,6 +5,7 @@ import { PantallaConexion } from './components/Conexion'
 import { Copias } from './components/Copias'
 import { Entidades, FichaEntidad } from './components/Entidades'
 import { Calendario } from './components/Calendario'
+import { Eventos } from './components/Eventos'
 import { Pendientes } from './components/Pendientes'
 import { Resumen } from './components/Resumen'
 import { Usuarios } from './components/Usuarios'
@@ -37,6 +38,7 @@ function DialogoActualizacion() {
           <li>Fechas de inicio y fin deducidas en {inf.fechasDeducidas} patrocinios (el texto de celebración no cambia).</li>
           <li>Estado del expediente por fases y tipo de IVA en cada patrocinio.</li>
         </>}
+        {inf.desde < 5 && <li>Dos estados nuevos del expediente: <strong>Pendiente de factura</strong> y <strong>Pagado</strong>. Los eventos que ya terminaron y no están pagados se ven en <a className="font-semibold text-indigo underline" href="#/eventos" onClick={cerrarInforme}>Eventos</a>.</li>}
         {inf.usuarios && <>
           <li>Los datos están <strong>protegidos</strong>: se entra con usuario y contraseña y el archivo queda cifrado, así que nadie puede leerlo sin una cuenta de GESTCON.</li>
           <li>Tú eres el administrador: da de alta al resto en <a className="font-semibold text-indigo underline" href="#/usuarios" onClick={cerrarInforme}>Usuarios</a>, con su usuario, una contraseña provisional y su rol.</li>
@@ -82,6 +84,7 @@ function Contenido() {
   else if (ruta === '/usuarios') pantalla = <Usuarios />
   else if (ruta === '/pendientes') pantalla = <Pendientes />
   else if (ruta === '/calendario') pantalla = <Calendario />
+  else if (ruta === '/eventos') pantalla = <Eventos />
   else if (ruta === '/resumen') pantalla = <Resumen />
   else if (ruta === '/entidades') pantalla = <Entidades />
   else if (/^\/entidad\/\d+$/.test(ruta)) pantalla = <FichaEntidad key={ruta} id={Number(ruta.split('/')[2])} />

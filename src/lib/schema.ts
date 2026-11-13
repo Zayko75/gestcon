@@ -1,9 +1,9 @@
-// Esquema de datos.sqlite (versión 4). Se usa al crear una base de datos vacía y en la migración desde la versión 1.
+// Esquema de datos.sqlite (versión 5: estados «pendiente de factura» y «pagado»). Se usa al crear una base de datos vacía y en la migración desde la versión 1.
 // Copia legible en docs/esquema.sql.
 
-export const VERSION_ESQUEMA = 4
+export const VERSION_ESQUEMA = 5
 
-export const ESTADOS = ['preparacion', 'pendiente_firma', 'firmado', 'tramitado'] as const
+export const ESTADOS = ['preparacion', 'pendiente_firma', 'firmado', 'pendiente_factura', 'tramitado', 'pagado'] as const
 
 const fecha = (c: string) => `CHECK (${c} IS NULL OR (${c} GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND date(${c}) IS NOT NULL))`
 
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS entidades (
 CREATE TABLE ${tablaPatrocinios} (
   id                     INTEGER PRIMARY KEY AUTOINCREMENT,
   estado                 TEXT NOT NULL DEFAULT 'preparacion'
-                         CHECK (estado IN ('preparacion','pendiente_firma','firmado','tramitado')),
+                         CHECK (estado IN ('preparacion','pendiente_firma','firmado','pendiente_factura','tramitado','pagado')),
   entidad_id             INTEGER REFERENCES entidades(id) ON DELETE SET NULL,
   -- Entidad
   entidad                TEXT NOT NULL DEFAULT '',

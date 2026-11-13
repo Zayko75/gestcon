@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { aBorrador, deBorrador } from '../lib/borrador'
-import { limiteMenor, sinIva } from '../lib/control'
+import { limiteMenor, sinIva, estaTramitado } from '../lib/control'
 import { eur } from '../lib/format'
 import { useStore } from '../lib/store'
 import { aplicacionPorDefecto, claveCif } from '../lib/textos'
@@ -178,7 +178,7 @@ export function FichaEntidad({ id }: { id: number }) {
                 {l.map((r) => (
                   <li key={r.id}>
                     <a href={`#/registro/${r.id}`} className="group flex items-center gap-4 px-5 py-3 hover:bg-indigo-claro/45">
-                      <Fecha iso={r.fecha_inicio} apagada={r.estado === 'tramitado'} />
+                      <Fecha iso={r.fecha_inicio} apagada={estaTramitado(r.estado)} />
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium leading-snug group-hover:text-indigo">{r.evento || '(sin evento)'}</span>
                         <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.86rem] text-tinta/60">

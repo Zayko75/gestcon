@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { textoRol } from '../lib/acceso'
-import { pendientes } from '../lib/control'
+import { pendientes, terminadosSinPagar } from '../lib/control'
 import { horaCorta } from '../lib/format'
 import { useStore } from '../lib/store'
 import { Dialogo, useAviso } from './ui'
@@ -26,6 +26,9 @@ const IconoLista = () => (
 const IconoReloj = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
 )
+const IconoEventos = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 21V4" /><path d="M5 4h12l-2 4 2 4H5" /></svg>
+)
 const IconoCalendario = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9.5h18M8 2.5v4M16 2.5v4M7 14h6M10 17.5h7" /></svg>
 )
@@ -47,6 +50,7 @@ export function Cabecera({ ruta }: { ruta: string }) {
   const [cambiandoClave, setCambiandoClave] = useState(false)
   // Lo urgente: firmas a menos de 30 días del evento y eventos celebrados sin tramitar
   const urgentes = useMemo(() => { const p = pendientes(registros); return p.firmaUrgente.length + p.porJustificar.length }, [registros])
+  const sinPagar = useMemo(() => terminadosSinPagar(registros).length, [registros])
   const aviso = useAviso()
 
   const nav = (href: string, texto: ReactNode, icono: ReactNode, activa: boolean) => (
@@ -75,6 +79,7 @@ export function Cabecera({ ruta }: { ruta: string }) {
           {nav('#/', 'Patrocinios', <IconoLista />, ruta === '/' || ruta === '/nuevo' || ruta.startsWith('/registro'))}
           {nav('#/pendientes', <>Pendientes{urgentes > 0 && <span className="ml-auto rounded-full bg-[#ffc266] px-1.5 py-px text-[0.75rem] font-bold text-noche" aria-label={`${urgentes} urgentes`}>{urgentes}</span>}</>, <IconoReloj />, ruta === '/pendientes')}
           {nav('#/calendario', 'Calendario', <IconoCalendario />, ruta === '/calendario')}
+          {nav('#/eventos', <>Eventos{sinPagar > 0 && <span className="ml-auto rounded-full bg-[#f2c4dd] px-1.5 py-px text-[0.75rem] font-bold text-noche" aria-label={`${sinPagar} terminados sin pagar`}>{sinPagar}</span>}</>, <IconoEventos />, ruta === '/eventos')}
           {nav('#/entidades', 'Entidades', <IconoEntidades />, ruta.startsWith('/entidad'))}
           {nav('#/resumen', 'Resumen', <IconoResumen />, ruta === '/resumen')}
           {puede('administrar') && nav('#/usuarios', 'Usuarios', <IconoUsuarios />, ruta === '/usuarios')}

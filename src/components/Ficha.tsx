@@ -247,7 +247,10 @@ export function Ficha({ id }: { id: number | null }) {
     if (id === null || !guardado) return
     const base = deBorrador(baseB.current)
     if (!('datos' in base)) return
-    const campos = Object.keys(diferencias(base.datos, datosDe(guardado))) as (keyof Borrador)[]
+    // Se compara pasando lo guardado por la ficha, como la base: los campos que la ficha calcula (importe en letra…)
+    // no cuentan como cambios de otro usuario aunque el texto guardado sea algo distinto
+    const r2 = deBorrador(aBorrador(guardado))
+    const campos = Object.keys(diferencias(base.datos, 'datos' in r2 ? r2.datos : datosDe(guardado))) as (keyof Borrador)[]
     if (!campos.length) return
     const remoto = aBorrador(guardado)
     const local = deBorrador(bRef.current)

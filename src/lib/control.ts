@@ -35,7 +35,12 @@ export function delMismoAnio(registros: Patrocinio[], p: { id: number | null; ci
 
 // ---------- Crédito por aplicación ----------
 /** Estados que ya comprometen el gasto en firme */
-export const FIRMES: Estado[] = ['firmado', 'tramitado']
+export const FIRMES: Estado[] = ['firmado', 'pendiente_factura', 'tramitado', 'pagado']
+
+/** Orden de los estados en la vida del expediente */
+const ORDEN: Estado[] = ['preparacion', 'pendiente_firma', 'firmado', 'pendiente_factura', 'tramitado', 'pagado']
+/** El expediente ya está tramitado (o pagado) */
+export const estaTramitado = (e: Estado) => ORDEN.indexOf(e) >= ORDEN.indexOf('tramitado')
 
 export interface UsoAplicacion {
   aplicacion: string
@@ -109,7 +114,7 @@ export function pendientes(registros: Patrocinio[], hoy = hoyISO(), dias = 30): 
   const porFecha = (a: Patrocinio, b: Patrocinio) => (a.fecha_inicio ?? '9999').localeCompare(b.fecha_inicio ?? '9999')
   const out: Pendientes = { firmaUrgente: [], sinFirmar: [], proximos: [], porJustificar: [] }
   for (const r of registros) {
-    if (r.estado === 'tramitado') continue
+    if (estaTramitado(r.estado)) continue
     const fin = r.fecha_fin ?? r.fecha_inicio
     const celebrado = (fin !== null && fin < hoy) || (r.plazo_ejecucion !== null && r.plazo_ejecucion < hoy)
     if (r.estado === 'preparacion' || r.estado === 'pendiente_firma') {
@@ -123,6 +128,24 @@ export function pendientes(registros: Patrocinio[], hoy = hoyISO(), dias = 30): 
   out.proximos.sort(porFecha)
   out.porJustificar.sort(porFecha)
   return out
+}
+
+// ---------- Eventos en curso y terminados sin pagar ----------
+/** Último día del evento (o el primero, si solo tiene uno) */
+export const finEvento = (r: Patrocinio) => r.fecha_fin ?? r.fecha_inicio
+
+/** Eventos que se están celebrando hoy (han empezado y no han terminado), por fecha de fin */
+export function enCurso(registros: Patrocinio[], hoy = hoyISO()): Patrocinio[] {
+  return registros
+    .filter((r) => r.fecha_inicio !== null && r.fecha_inicio <= hoy && (finEvento(r) ?? '') >= hoy)
+    .sort((a, b) => (finEvento(a) ?? '').localeCompare(finEvento(b) ?? '') || a.entidad.localeCompare(b.entidad))
+}
+
+/** Eventos ya terminados que no están pagados (la entidad aún no ha presentado la factura o no se ha pagado), los más antiguos primero */
+export function terminadosSinPagar(registros: Patrocinio[], hoy = hoyISO()): Patrocinio[] {
+  return registros
+    .filter((r) => r.estado !== 'pagado' && (finEvento(r) ?? '9999') < hoy)
+    .sort((a, b) => (finEvento(a) ?? '').localeCompare(finEvento(b) ?? '') || a.entidad.localeCompare(b.entidad))
 }
 
 export const totalPendientes = (p: Pendientes) => p.firmaUrgente.length + p.porJustificar.length + p.proximos.length + p.sinFirmar.length

@@ -66,7 +66,7 @@ export const NOMBRE_CAMPO: Record<keyof DatosPatrocinio, string> = {
   importe_reding: 'Importe REDING', fecha_firma: 'Fecha de firma',
 }
 
-const TEXTO_ESTADO: Record<Estado, string> = { preparacion: 'En preparación', pendiente_firma: 'Pendiente de firma', firmado: 'Firmado', tramitado: 'Tramitado' }
+const TEXTO_ESTADO: Record<Estado, string> = { preparacion: 'En preparación', pendiente_firma: 'Pendiente de firma', firmado: 'Firmado', pendiente_factura: 'Pendiente de factura', tramitado: 'Tramitado', pagado: 'Pagado' }
 
 /** Campos que se calculan de otros: no se nombran si ya se nombra aquel del que salen */
 const DERIVADOS: Partial<Record<keyof DatosPatrocinio, (keyof DatosPatrocinio)[]>> = {

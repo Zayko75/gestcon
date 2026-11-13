@@ -49,10 +49,10 @@ function Presupuesto({ u, onCredito, editable }: { u: UsoAplicacion; onCredito: 
         </div>
         {/* Barra: comprometido en firme + en curso, sobre el crédito (raya vertical) */}
         <div className="relative mt-3 h-6" role="img"
-          aria-label={`${eur(u.firme)} firmado o tramitado y ${eur(u.enCurso)} en curso${u.credito !== null ? ` de un crédito de ${eur(u.credito)}` : ''}`}>
+          aria-label={`${eur(u.firme)} firmado o posterior y ${eur(u.enCurso)} en curso${u.credito !== null ? ` de un crédito de ${eur(u.credito)}` : ''}`}>
           <div className="absolute inset-y-1 left-0 right-0 rounded bg-papel" />
           <div className="absolute inset-y-0 left-0 flex gap-[2px]" style={{ width: pct(u.total) }}>
-            {u.firme > 0 && <div className="h-full rounded-l-[4px] last:rounded-r-[4px]" style={{ width: `${(u.firme / u.total) * 100}%`, background: FIRME }} title={`Firmado o tramitado: ${eur(u.firme)}`} />}
+            {u.firme > 0 && <div className="h-full rounded-l-[4px] last:rounded-r-[4px]" style={{ width: `${(u.firme / u.total) * 100}%`, background: FIRME }} title={`Firmado o posterior: ${eur(u.firme)}`} />}
             {u.enCurso > 0 && <div className="h-full first:rounded-l-[4px] rounded-r-[4px]" style={{ width: `${(u.enCurso / u.total) * 100}%`, background: EN_CURSO }} title={`En curso: ${eur(u.enCurso)}`} />}
           </div>
           {u.credito !== null && (
@@ -166,7 +166,7 @@ export function Resumen() {
             <p className="mt-0.5 text-[0.88rem] text-tinta/60">Importes con IVA. El crédito se guarda en el archivo de datos.</p>
           </div>
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[0.84rem] text-tinta/70" aria-label="Leyenda">
-            <li className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ background: FIRME }} aria-hidden="true" />Firmado o tramitado</li>
+            <li className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ background: FIRME }} aria-hidden="true" />Firmado o posterior</li>
             <li className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ background: EN_CURSO }} aria-hidden="true" />En preparación o pendiente de firma</li>
             <li className="flex items-center gap-1.5"><span className="h-3.5 w-[2px] bg-tinta" aria-hidden="true" />Crédito</li>
           </ul>
