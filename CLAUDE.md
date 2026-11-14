@@ -85,6 +85,13 @@ Patrocinios/
 Úsalas cuando la tarea lo pida; no son obligatorias en cada cambio. Si una no está
 instalada, avisa a Bienve en vez de imitarla a mano.
 
+Los plugins están declarados en `.claude/settings.json` (Claude Code pide instalarlos al
+abrir el proyecto):
+- `frontend-design@claude-plugins-official`
+- `animatedwebs@animatedwebs` (catálogo `iboss21/animatedwebs-claude`; usa el servidor MCP
+  `https://mcp.animatedwebs.com`)
+- `document-skills@anthropic-agent-skills` (catálogo `anthropics/skills`; incluye `docx` y `xlsx`)
+
 | Skill | Cuándo usarla |
 |---|---|
 | `docx` | Analizar o modificar plantillas Word (etiquetas `{campo}`, runs, formato). |

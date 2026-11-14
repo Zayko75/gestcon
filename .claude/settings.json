@@ -1,0 +1,15 @@
+{
+  "extraKnownMarketplaces": {
+    "animatedwebs": {
+      "source": { "source": "github", "repo": "iboss21/animatedwebs-claude" }
+    },
+    "anthropic-agent-skills": {
+      "source": { "source": "github", "repo": "anthropics/skills" }
+    }
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "animatedwebs@animatedwebs": true,
+    "document-skills@anthropic-agent-skills": true
+  }
+}
