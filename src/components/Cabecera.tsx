@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { textoRol } from '../lib/acceso'
 import { pendientes, terminadosSinPagar } from '../lib/control'
 import { horaCorta } from '../lib/format'
@@ -52,8 +52,17 @@ export function Cabecera({ ruta }: { ruta: string }) {
   const urgentes = useMemo(() => { const p = pendientes(registros); return p.firmaUrgente.length + p.porJustificar.length }, [registros])
   const sinPagar = useMemo(() => terminadosSinPagar(registros).length, [registros])
   const aviso = useAviso()
+  // Justo después de guardar, el punto se convierte un momento en una marca de verificación
+  const [recienGuardado, setRecienGuardado] = useState(false)
+  const horaGuardado = guardado.estado === 'guardado' ? guardado.hora?.getTime() : undefined
+  useEffect(() => {
+    if (horaGuardado === undefined) { setRecienGuardado(false); return }
+    setRecienGuardado(true)
+    const t = setTimeout(() => setRecienGuardado(false), 2200)
+    return () => clearTimeout(t)
+  }, [horaGuardado])
 
-  const nav = (href: string, texto: ReactNode, icono: ReactNode, activa: boolean) => (
+  const nav =(href: string, texto: ReactNode, icono: ReactNode, activa: boolean) => (
     <a href={href} aria-current={activa ? 'page' : undefined}
       className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-[0.92rem] font-medium transition-colors ${activa ? 'bg-white/[.12] text-white' : 'text-white/65 hover:bg-white/[.06] hover:text-white'}`}>
       {icono}{texto}
@@ -62,7 +71,11 @@ export function Cabecera({ ruta }: { ruta: string }) {
 
   const estado = (
     <span role="status" aria-live="polite" className="flex items-center gap-2">
-      <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${guardado.estado === 'error' ? 'bg-[#ff8a80]' : guardado.estado === 'guardando' ? 'animate-pulse bg-[#ffc266]' : 'bg-[#6fd3a2]'}`} />
+      {recienGuardado
+        ? <span key={guardado.hora?.getTime()} aria-hidden="true" className="grid size-4 shrink-0 animate-marca place-items-center rounded-full bg-[#6fd3a2] text-noche">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+          </span>
+        : <span aria-hidden="true" className={`mx-1 h-2 w-2 shrink-0 rounded-full ${guardado.estado === 'error' ? 'bg-[#ff8a80]' : guardado.estado === 'guardando' ? 'animate-pulse bg-[#ffc266]' : 'bg-[#6fd3a2]'}`} />}
       <span className={guardado.estado === 'error' ? 'font-medium text-[#ffb3ab]' : 'text-white/80'}>
         {guardado.estado === 'guardando' && 'Guardando…'}
         {guardado.estado === 'guardado' && (guardado.hora ? `Guardado a las ${horaCorta(guardado.hora)}` : 'Datos al día')}

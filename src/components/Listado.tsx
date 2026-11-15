@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { municipiosConNombre, municipiosDe, sinIva, estaTramitado } from '../lib/control'
 import { descargar, libroExcel, TIPO_XLSX, type Columna } from '../lib/excel'
 import { eur, fechaES, parseImporte } from '../lib/format'
 import { useStore } from '../lib/store'
 import type { Patrocinio } from '../types'
-import { Dorsal, ESTADOS, EstadoChip, textoEstado, useAviso } from './ui'
+import { Dorsal, ESTADOS, EstadoChip, textoEstado, TONO_ESTADO, useAviso } from './ui'
 
 type Col = 'id' | 'num_contrato' | 'entidad' | 'anualidad' | 'importe_total' | 'fecha_inicio'
 
@@ -49,7 +49,11 @@ function filtroInicial(): { anio?: string; estado?: string; aplicacion?: string 
 
 const SIN_FILTROS: Filtros = { municipio: '', aplicacion: '', importeDesde: '', importeHasta: '', fechaDesde: '', fechaHasta: '' }
 
-const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+/** Cabecera de la tabla: en pantallas grandes se queda fija al bajar por el listado */
+const KBD = 'rounded border border-linea bg-white px-1.5 py-px font-sans text-[0.75rem] font-semibold text-tinta/70 shadow-[0_1px_0_theme(colors.linea)]'
+const TH ='bg-white lg:sticky lg:top-0 lg:z-10 shadow-[inset_0_-1px_0_theme(colors.linea)]'
+
+const sinTildes =(t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 export function Listado() {
   const { registros, puede } = useStore()
@@ -115,10 +119,43 @@ export function Listado() {
     aviso(filas.length === 1 ? 'Exportado 1 patrocinio a Excel.' : `Exportados ${filas.length} patrocinios a Excel.`)
   }
 
+  // Al abrir la pantalla, las primeras filas entran escalonadas (una sola vez: no al filtrar)
+  const [entrada, setEntrada] = useState(true)
+  useEffect(() => { const t = setTimeout(() => setEntrada(false), 700); return () => clearTimeout(t) }, [])
+
+  // Atajos de teclado: «/» lleva al buscador; con ↑ ↓ se recorren las filas e Intro abre la ficha
+  const buscador = useRef<HTMLInputElement>(null)
+  const cuerpo = useRef<HTMLTableSectionElement>(null)
+  useEffect(() => {
+    const f = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      if (document.querySelector('[role="dialog"]')) return
+      e.preventDefault()
+      buscador.current?.focus()
+      buscador.current?.select()
+    }
+    window.addEventListener('keydown', f)
+    return () => window.removeEventListener('keydown', f)
+  }, [])
+  const enlacesFilas = () => [...(cuerpo.current?.querySelectorAll<HTMLAnchorElement>('a[data-fila]') ?? [])]
+  const teclaBuscador = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); enlacesFilas()[0]?.focus() }
+  }
+  const teclaFilas = (e: React.KeyboardEvent) => {
+    const lista = enlacesFilas()
+    const i = lista.indexOf(document.activeElement as HTMLAnchorElement)
+    if (i < 0) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); lista[Math.min(i + 1, lista.length - 1)].focus() }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (i === 0) buscador.current?.focus(); else lista[i - 1].focus() }
+    else if (e.key === 'Escape') { e.preventDefault(); buscador.current?.focus() }
+  }
+
   const cab = (col: Col, texto: string, clase = '') => {
     const activa = orden.col === col
     return (
-      <th scope="col" aria-sort={activa ? (orden.asc ? 'ascending' : 'descending') : 'none'} className={`whitespace-nowrap px-4 py-3 text-left font-medium ${clase}`}>
+      <th scope="col" aria-sort={activa ? (orden.asc ? 'ascending' : 'descending') : 'none'} className={`${TH} whitespace-nowrap px-4 py-3 text-left font-medium ${clase}`}>
         <button className={`inline-flex items-center gap-1.5 rounded hover:text-tinta ${activa ? 'text-tinta' : ''}`} onClick={() => setOrden({ col, asc: activa ? !orden.asc : col === 'entidad' })}>
           {texto}
           <svg width="10" height="12" viewBox="0 0 10 12" aria-hidden="true" className={activa ? 'text-indigo' : 'text-tinta/25'}>
@@ -149,8 +186,8 @@ export function Listado() {
         <div className="relative min-w-[240px] flex-1">
           <label htmlFor="buscar" className="sr-only">Buscar</label>
           <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-tinta/40" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-          <input id="buscar" type="search" className="campo !py-2.5 pl-10" value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar por entidad, evento, CIF, municipio o nº de contrato" autoFocus />
+          <input id="buscar" ref={buscador} type="search" className="campo !py-2.5 pl-10" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={teclaBuscador}
+            placeholder="Buscar por entidad, evento, CIF, municipio o nº de contrato" autoFocus aria-keyshortcuts="/" />
         </div>
         <div>
           <label htmlFor="anio" className="sr-only">Anualidad</label>
@@ -174,7 +211,7 @@ export function Listado() {
       </div>
 
       {masFiltros && (
-        <div id="mas-filtros" className="mt-3 grid gap-x-4 gap-y-4 rounded-xl border border-linea bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div id="mas-filtros" className="mt-3 grid animate-desplegar gap-x-4 gap-y-4 rounded-xl border border-linea bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label htmlFor="f-municipio" className="etiqueta">Municipio</label>
             <input id="f-municipio" className="campo" list="lista-mun-filtro" value={f.municipio} onChange={(e) => setFiltro('municipio', e.target.value)} placeholder="Cualquiera" autoComplete="off" />
@@ -187,14 +224,14 @@ export function Listado() {
               {aplicaciones.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
-          <fieldset>
+          <fieldset className="min-w-0">
             <legend className="etiqueta">Importe total (€)</legend>
             <div className="flex items-center gap-2">
               <input aria-label="Importe desde" className="campo min-w-0" inputMode="decimal" placeholder="Desde" value={f.importeDesde} onChange={(e) => setFiltro('importeDesde', e.target.value)} />
               <input aria-label="Importe hasta" className="campo min-w-0" inputMode="decimal" placeholder="Hasta" value={f.importeHasta} onChange={(e) => setFiltro('importeHasta', e.target.value)} />
             </div>
           </fieldset>
-          <fieldset>
+          <fieldset className="min-w-0">
             <legend className="etiqueta">Fecha del evento</legend>
             <div className="flex items-center gap-2">
               <input aria-label="Evento desde" type="date" className="campo min-w-0 !px-2" value={f.fechaDesde} onChange={(e) => setFiltro('fechaDesde', e.target.value)} />
@@ -211,13 +248,18 @@ export function Listado() {
             {' '}<button type="button" className="font-medium text-indigo underline underline-offset-2" onClick={quitarFiltros}>Quitar filtros</button>
           </> : <>{eur(registros.reduce((s, r) => s + r.importe_total, 0))} en total.</>}
         </p>
+        <p className="ml-auto hidden items-center gap-x-3 text-[0.8rem] text-tinta/50 xl:flex [@media(hover:none)]:!hidden">
+          <span><kbd className={KBD}>/</kbd> buscar</span>
+          <span><kbd className={KBD}>↑</kbd> <kbd className={KBD}>↓</kbd> moverse</span>
+          <span><kbd className={KBD}>Intro</kbd> abrir</span>
+        </p>
         <button type="button" className="btn-texto btn-sm" onClick={exportar} disabled={filas.length === 0}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" /></svg>
           Exportar {filtrado ? 'lo filtrado' : 'todo'} a Excel
         </button>
       </div>
 
-      <div className="mt-1 overflow-hidden rounded-xl border border-linea bg-white">
+      <div className="mt-1 overflow-clip rounded-xl border border-linea bg-white">
         {filas.length === 0 ? (
           <div className="px-6 py-16 text-center">
             {registros.length === 0 ? (
@@ -236,23 +278,28 @@ export function Listado() {
           </div>
         ) : (
           <table className="w-full text-[0.92rem]">
-            <thead className="border-b border-linea text-[0.84rem] text-tinta/55">
+            <thead className="text-[0.84rem] text-tinta/55">
               <tr>
                 {cab('num_contrato', 'Contrato', 'w-24')}
                 {cab('entidad', 'Patrocinio')}
                 {cab('fecha_inicio', 'Evento', 'w-32 max-lg:hidden')}
                 {cab('anualidad', 'Año', 'w-20 max-sm:hidden')}
                 {cab('importe_total', 'Importe', 'w-40 text-right max-md:hidden [&>button]:ml-auto')}
-                <th scope="col" className="w-36 px-4 py-3 text-left font-medium max-sm:hidden">Estado</th>
+                <th scope="col" className={`${TH} w-36 px-4 py-3 text-left font-medium max-sm:hidden`}>Estado</th>
               </tr>
             </thead>
-            <tbody>
-              {filas.map((r) => (
-                <tr key={r.id} className="group cursor-pointer border-b border-linea/70 transition-colors last:border-0 hover:bg-indigo-claro/45"
+            <tbody ref={cuerpo} onKeyDown={teclaFilas}>
+              {filas.map((r, i) => (
+                <tr key={r.id} className={`group cursor-pointer border-b border-linea/70 transition-colors last:border-0 hover:bg-indigo-claro/45 focus-within:bg-indigo-claro/60 ${entrada && i < 14 ? 'animate-fila' : ''}`}
+                  style={entrada && i < 14 ? { animationDelay: `${i * 28}ms` } : undefined}
                   onClick={() => (location.hash = `#/registro/${r.id}`)}>
-                  <td className="py-3 pl-4 pr-2 align-middle"><Dorsal numero={r.num_contrato} /></td>
+                  <td className="relative py-3 pl-4 pr-2 align-middle">
+                    {/* Marca del estado: una barra fina del color del estado, para localizarlo de un vistazo */}
+                    <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: TONO_ESTADO[r.estado].barra }} />
+                    <Dorsal numero={r.num_contrato} />
+                  </td>
                   <td className="px-4 py-3 align-middle">
-                    <a href={`#/registro/${r.id}`} onClick={(e) => e.stopPropagation()} className="font-semibold leading-snug text-tinta group-hover:text-indigo">
+                    <a href={`#/registro/${r.id}`} data-fila onClick={(e) => e.stopPropagation()} className="rounded-sm font-semibold leading-snug text-tinta outline-offset-4 group-hover:text-indigo">
                       {r.entidad || '(sin entidad)'}
                     </a>
                     <div className="mt-0.5 line-clamp-1 text-[0.86rem] text-tinta/60" title={r.evento}>{r.evento}</div>

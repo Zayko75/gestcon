@@ -12,7 +12,7 @@ import type { DatosPatrocinio, Entidad, Estado, Patrocinio } from '../types'
 import { EntradaMascara } from './EntradaMascara'
 import { ListaSoportes, sugerenciasDeSoportes } from './ListaSoportes'
 import { PanelDocumentos } from './PanelDocumentos'
-import { Dialogo, Dorsal, ESTADOS, useAviso } from './ui'
+import { Dialogo, Dorsal, RecorridoEstado, useAviso } from './ui'
 
 function Campo({ id, etiqueta, ayuda, aviso, accion, children, className = '' }: { id: string; etiqueta: string; ayuda?: ReactNode; aviso?: ReactNode; accion?: ReactNode; children: ReactNode; className?: string }) {
   return (
@@ -32,9 +32,53 @@ const Accion = ({ onClick, children }: { onClick: () => void; children: ReactNod
   <button type="button" onClick={onClick} className="mb-1.5 rounded text-[0.8rem] font-semibold text-indigo hover:underline">{children}</button>
 )
 
-function Seccion({ titulo, descripcion, children }: { titulo: string; descripcion: string; children: ReactNode }) {
+/** Secciones de la ficha, para el índice */
+const SECCIONES = [
+  { id: 's-entidad', texto: 'Entidad' },
+  { id: 's-evento', texto: 'Evento' },
+  { id: 's-contrato', texto: 'Contrato e importes' },
+  { id: 's-documentos', texto: 'Documentos' },
+]
+
+/** Índice de la ficha: enlaces a cada sección que marcan en cuál estás */
+function IndiceFicha() {
+  const [activa, setActiva] = useState(SECCIONES[0].id)
+  useEffect(() => {
+    // En pantallas grandes los documentos están siempre a la derecha: no cuentan para el índice
+    const grande = window.matchMedia('(min-width: 1024px)').matches
+    const els = SECCIONES.filter((s) => !(grande && s.id === 's-documentos'))
+      .map((s) => document.getElementById(s.id)).filter((x): x is HTMLElement => !!x)
+    const obs = new IntersectionObserver((entradas) => {
+      const visibles = entradas.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+      if (visibles[0]) setActiva(visibles[0].target.id)
+    }, { rootMargin: '-15% 0px -65% 0px' })
+    els.forEach((el) => obs.observe(el))
+    return () => obs.disconnect()
+  }, [])
+  const ir = (e: React.MouseEvent, id: string) => {
+    // El enlace no cambia la dirección (#/registro/…): solo desplaza hasta la sección
+    e.preventDefault()
+    const el = document.getElementById(id)
+    if (!el) return
+    const suave = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ behavior: suave ? 'smooth' : 'auto', block: 'start' })
+    setActiva(id)
+  }
   return (
-    <section aria-label={titulo} className="grid gap-x-8 gap-y-5 border-t border-linea px-5 py-7 first:border-t-0 sm:px-7 xl:grid-cols-[10.5rem_minmax(0,1fr)]">
+    <nav aria-label="Secciones de la ficha" className="no-imprimir mb-3 flex gap-1 overflow-x-auto bg-papel py-1 lg:sticky lg:top-0 lg:z-10 lg:-mt-1">
+      {SECCIONES.map((s) => (
+        <a key={s.id} href={`#${s.id}`} onClick={(e) => ir(e, s.id)} aria-current={activa === s.id ? 'location' : undefined}
+          className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors ${activa === s.id ? 'bg-noche text-white' : 'text-tinta/65 hover:bg-white hover:text-tinta'} ${s.id === 's-documentos' ? 'lg:hidden' : ''}`}>
+          {s.texto}
+        </a>
+      ))}
+    </nav>
+  )
+}
+
+function Seccion({ titulo, descripcion, ancla, children }: { titulo: string; descripcion: string; ancla: string; children: ReactNode }) {
+  return (
+    <section id={ancla} aria-label={titulo} className="grid scroll-mt-36 gap-x-8 gap-y-5 border-t border-linea px-5 py-7 first:border-t-0 sm:px-7 lg:scroll-mt-14 xl:grid-cols-[10.5rem_minmax(0,1fr)]">
       <div>
         <h2 className="font-display text-[1.4rem] font-semibold leading-tight">{titulo}</h2>
         <p className="mt-1 text-[0.85rem] leading-snug text-tinta/55">{descripcion}</p>
@@ -397,13 +441,9 @@ export function Ficha({ id }: { id: number | null }) {
               onDeshacer={() => void moverPaso('deshacer')} onRehacer={() => void moverPaso('rehacer')} onDeshacerHasta={deshacerHasta} />
           )}
         </div>
-        <div className="w-full sm:w-auto">
-          <span id="t-estado" className="etiqueta">Estado del expediente</span>
-          <div className="segmento flex-wrap" role="group" aria-labelledby="t-estado">
-            {ESTADOS.map((e) => (
-              <button key={e.valor} type="button" aria-pressed={b.estado === e.valor} onClick={() => set('estado', e.valor)}>{e.texto}</button>
-            ))}
-          </div>
+        <div className="w-full rounded-xl border border-linea bg-white px-3 pb-3 pt-3.5 sm:px-5">
+          <span id="t-estado" className="etiqueta !mb-3">Recorrido del expediente</span>
+          <RecorridoEstado etiquetaId="t-estado" estado={b.estado} onCambiar={(e) => set('estado', e)} deshabilitado={soloLectura} />
         </div>
       </div>
 
@@ -412,15 +452,16 @@ export function Ficha({ id }: { id: number | null }) {
       )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div>
+        <div className="min-w-0">
           {soloLectura && (
             <p className="mb-4 rounded-xl border border-linea bg-white px-4 py-3 text-[0.92rem] text-tinta/75" role="note">
               Tu usuario es de <strong>consulta</strong>: puedes ver los datos y los documentos ya generados, pero no modificarlos.
             </p>
           )}
+          <IndiceFicha />
           <fieldset disabled={soloLectura} className="m-0 min-w-0 border-0 p-0">
           <div className="overflow-hidden rounded-xl border border-linea bg-white" onBlurCapture={() => { if (id !== null && !soloLectura) void guardarAhora() }}>
-          <Seccion titulo="Entidad" descripcion="Quién recibe el patrocinio y cómo contactar.">
+          <Seccion ancla="s-entidad" titulo="Entidad" descripcion="Quién recibe el patrocinio y cómo contactar.">
             <Campo id="f-entidad" etiqueta="Entidad" className="sm:col-span-2"
               accion={guardado?.entidad_id ? <a href={`#/entidad/${guardado.entidad_id}`} className="mb-1.5 rounded text-[0.8rem] font-semibold text-indigo hover:underline">Ver sus patrocinios</a> : undefined}
               ayuda={id === null ? 'Si la entidad ya ha tenido patrocinios, elígela de la lista y se rellenarán sus datos.' : undefined}>
@@ -449,7 +490,7 @@ export function Ficha({ id }: { id: number | null }) {
             </Campo>
           </Seccion>
 
-          <Seccion titulo="Evento" descripcion="Qué se patrocina, cuándo, dónde y con qué soportes.">
+          <Seccion ancla="s-evento" titulo="Evento" descripcion="Qué se patrocina, cuándo, dónde y con qué soportes.">
             <Campo id="f-anualidad" etiqueta="Anualidad"><input {...texto('anualidad')} onChange={(e) => cambiarAnualidad(e.target.value)} inputMode="numeric" /></Campo>
             <Campo id="f-plazo_ejecucion" etiqueta="Plazo de ejecución"><input {...texto('plazo_ejecucion')} type="date" /></Campo>
             <Campo id="f-evento" etiqueta="Evento" className="sm:col-span-2"><textarea {...texto('evento')} rows={2} /></Campo>
@@ -481,7 +522,7 @@ export function Ficha({ id }: { id: number | null }) {
             </Campo>
           </Seccion>
 
-          <Seccion titulo="Contrato e importes" descripcion="Datos del expediente para anexos y contrato.">
+          <Seccion ancla="s-contrato" titulo="Contrato e importes" descripcion="Datos del expediente para anexos y contrato.">
             <Campo id="f-num_contrato" etiqueta="Nº de contrato" ayuda="Se reinicia cada año."
               aviso={contratoRepetido ? `Ya hay otro patrocinio de ${anioNum} con este número de contrato.` : undefined}>
               <input {...texto('num_contrato')} inputMode="numeric" />
@@ -537,7 +578,7 @@ export function Ficha({ id }: { id: number | null }) {
           </div>
         </div>
 
-        <div className="lg:sticky lg:top-6">
+        <div id="s-documentos" className="scroll-mt-36 lg:sticky lg:top-6">
           <PanelDocumentos
             registro={registroParaDocs}
             listoParaGenerar={id !== null && 'datos' in parsed}

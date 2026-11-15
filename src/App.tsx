@@ -65,6 +65,19 @@ function DialogoActualizacion() {
   )
 }
 
+/** Si falla el guardado, una franja fija que no desaparece sola hasta que se vuelve a guardar */
+function FranjaErrorGuardado() {
+  const { guardado, sincronizarAhora } = useStore()
+  if (guardado.estado !== 'error') return null
+  return (
+    <div role="alert" className="no-imprimir z-20 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-error/25 bg-[#fbeceb] px-4 py-2.5 text-[0.9rem] text-error sm:px-8 lg:sticky lg:top-0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0"><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17h.01" /></svg>
+      <p className="min-w-0 flex-1"><strong className="font-semibold">Problema al guardar.</strong> {guardado.mensaje ?? 'Los últimos cambios no se han guardado.'}</p>
+      <button type="button" className="btn-peligro btn-sm" onClick={() => void sincronizarAhora()}>Reintentar ahora</button>
+    </div>
+  )
+}
+
 function Contenido() {
   const { fase, remap, puede } = useStore()
   const ruta = useRuta()
@@ -94,7 +107,7 @@ function Contenido() {
   return (
     <>
       <Cabecera ruta={ruta} />
-      <div className="lg:pl-64">{pantalla}</div>
+      <div className="lg:pl-64"><FranjaErrorGuardado />{pantalla}</div>
       <DialogoActualizacion />
       <DialogoCodigo />
     </>

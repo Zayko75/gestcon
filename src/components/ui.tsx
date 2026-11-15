@@ -9,20 +9,26 @@ export const useAviso = () => useContext(ToastCtx)
 export function AvisosProvider({ children }: { children: ReactNode }) {
   const [avisos, setAvisos] = useState<Aviso[]>([])
   const n = useRef(0)
+  const cerrar = useCallback((id: number) => setAvisos((a) => a.filter((x) => x.id !== id)), [])
   const mostrar = useCallback((texto: string, tipo: Aviso['tipo'] = 'ok') => {
     const id = ++n.current
     setAvisos((a) => [...a, { id, texto, tipo }])
-    setTimeout(() => setAvisos((a) => a.filter((x) => x.id !== id)), tipo === 'error' ? 9000 : 4500)
-  }, [])
+    // Los errores se quedan hasta que se cierran: así no pasan desapercibidos
+    if (tipo !== 'error') setTimeout(() => cerrar(id), tipo === 'aviso' ? 7000 : 4500)
+  }, [cerrar])
   return (
     <ToastCtx.Provider value={mostrar}>
       {children}
-      <div className="fixed bottom-4 left-4 right-4 z-50 flex flex-col items-end gap-2 sm:left-auto sm:max-w-sm" aria-live="polite">
+      <div className="no-imprimir fixed bottom-4 left-4 right-4 z-50 flex flex-col items-end gap-2 sm:left-auto sm:max-w-sm" aria-live="polite">
         {avisos.map((a) => (
-          <div key={a.id} role="status"
-            className="flex w-full items-start gap-3 rounded-xl bg-noche px-4 py-3 text-[0.9rem] leading-snug text-white shadow-[0_12px_32px_-12px_rgba(22,27,69,.6)]">
+          <div key={a.id} role={a.tipo === 'error' ? 'alert' : 'status'}
+            className={`flex w-full animate-entrar items-start gap-3 rounded-xl bg-noche py-3 pl-4 pr-2 text-[0.9rem] leading-snug text-white shadow-[0_12px_32px_-12px_rgba(22,27,69,.6)] ${a.tipo === 'error' ? 'ring-2 ring-[#ff8a80]/70' : ''}`}>
             <span aria-hidden="true" className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${a.tipo === 'error' ? 'bg-[#ff8a80]' : a.tipo === 'aviso' ? 'bg-[#ffc266]' : 'bg-[#6fd3a2]'}`} />
-            <span>{a.texto}</span>
+            <span className="min-w-0 flex-1">{a.texto}</span>
+            <button type="button" onClick={() => cerrar(a.id)} aria-label="Cerrar aviso"
+              className="-my-1 grid size-7 shrink-0 place-items-center rounded-md text-white/55 transition-colors hover:bg-white/10 hover:text-white">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+            </button>
           </div>
         ))}
       </div>
@@ -39,8 +45,8 @@ export function Dialogo({ titulo, children, acciones, onCerrar }: { titulo: stri
     return () => window.removeEventListener('keydown', f)
   }, [onCerrar])
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-noche/50 p-4 backdrop-blur-[2px] sm:items-center" role="dialog" aria-modal="true" aria-label={titulo}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_24px_64px_-24px_rgba(22,27,69,.55)]">
+    <div className="fixed inset-0 z-40 flex animate-fundido items-end justify-center bg-noche/50 p-4 backdrop-blur-[2px] sm:items-center" role="dialog" aria-modal="true" aria-label={titulo}>
+      <div className="w-full max-w-md animate-aparecer rounded-2xl bg-white p-6 shadow-[0_24px_64px_-24px_rgba(22,27,69,.55)]">
         <h2 className="font-display text-[1.6rem] font-semibold leading-tight">{titulo}</h2>
         <div className="mt-3 space-y-2 text-[0.95rem] leading-relaxed text-tinta/80">{children}</div>
         <div className="mt-6 flex flex-wrap justify-end gap-2">{acciones}</div>
@@ -85,6 +91,59 @@ export function EstadoChip({ estado }: { estado: Estado }) {
       <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--punto)]" />
       {textoEstado(estado)}
     </span>
+  )
+}
+
+// ---------- Recorrido del expediente ----------
+/** Medio tramo de la pista entre dos puntos; el relleno se desliza con un pequeño retraso según su posición */
+function Tramo({ lleno, lado, orden }: { lleno: boolean; lado: 'izq' | 'der'; orden: number }) {
+  return (
+    <span aria-hidden="true" className={`absolute top-[0.95rem] h-[3px] -translate-y-1/2 overflow-hidden bg-linea ${lado === 'izq' ? 'left-0 right-1/2' : 'left-1/2 right-0'}`}>
+      <span className={`block h-full origin-left bg-indigo transition-transform duration-200 ease-out ${lleno ? 'scale-x-100' : 'scale-x-0'}`}
+        style={{ transitionDelay: lleno ? `${orden * 35}ms` : '0ms' }} />
+    </span>
+  )
+}
+
+/** Las 6 etapas del expediente como los puntos de control de una carrera: las cumplidas, la actual y las que faltan */
+export function RecorridoEstado({ estado, onCambiar, deshabilitado = false, etiquetaId }: { estado: Estado; onCambiar: (e: Estado) => void; deshabilitado?: boolean; etiquetaId: string }) {
+  const actual = ESTADOS.findIndex((e) => e.valor === estado)
+  const tono = TONO_ESTADO[estado]
+  return (
+    <>
+    <ol role="group" aria-labelledby={etiquetaId} className="grid grid-cols-6">
+      {ESTADOS.map((e, k) => {
+        const hecho = k < actual, esActual = k === actual
+        return (
+          <li key={e.valor} className="relative flex justify-center">
+            {/* Tramos de la pista: a la izquierda y a la derecha de cada punto */}
+            {/* La pista se rellena de izquierda a derecha, tramo a tramo, al avanzar el expediente */}
+            {k > 0 && <Tramo lleno={k <= actual} lado="izq" orden={2 * k - 1} />}
+            {k < ESTADOS.length - 1 && <Tramo lleno={k < actual} lado="der" orden={2 * k} />}
+            <button type="button" aria-pressed={esActual} disabled={deshabilitado} onClick={() => onCambiar(e.valor)}
+              className="group relative z-10 flex flex-col items-center gap-1.5 rounded-lg px-0.5 pb-1 text-center disabled:cursor-default">
+              <span aria-hidden="true" key={esActual ? 'actual' : hecho ? 'hecho' : 'falta'}
+                style={esActual ? { backgroundColor: tono.barra, borderColor: tono.barra, boxShadow: `0 0 0 4px ${tono.fondo}` } : undefined}
+                className={`grid size-[1.9rem] place-items-center rounded-full border-2 font-display text-[0.95rem] font-bold leading-none transition-[background-color,border-color,box-shadow,transform] duration-200 group-enabled:group-hover:-translate-y-0.5
+                  ${hecho ? 'border-indigo bg-indigo text-white' : esActual ? 'animate-marca text-white' : 'border-linea bg-white text-tinta/40 group-enabled:group-hover:border-indigo/50 group-enabled:group-hover:text-indigo'}`}>
+                {hecho
+                  ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                  : k + 1}
+              </span>
+              <span className={`max-w-[7.5rem] text-[0.8rem] leading-tight max-sm:sr-only ${esActual ? 'font-semibold text-tinta' : hecho ? 'text-tinta/65' : 'text-tinta/45'}`}>
+                {e.texto}
+                {hecho && <span className="sr-only"> (cumplido)</span>}
+              </span>
+            </button>
+          </li>
+        )
+      })}
+    </ol>
+    {/* En el móvil no caben los nombres bajo cada punto: se muestra solo el de la etapa actual */}
+    <p aria-hidden="true" className="mt-1 text-center text-[0.88rem] font-semibold sm:hidden" style={{ color: tono.texto }}>
+      {actual + 1}. {textoEstado(estado)}
+    </p>
+    </>
   )
 }
 

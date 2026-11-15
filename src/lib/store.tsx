@@ -28,6 +28,8 @@ type Fase =
   | 'listo'
 export type Origen = 'local' | 'drive' | 'puente'
 type EstadoGuardado = { estado: 'guardado' | 'guardando' | 'error'; hora?: Date; mensaje?: string }
+/** Paso en curso mientras se abren los datos (pantalla de carga) */
+export type PasoCarga = 'conectar' | 'leer' | 'abrir'
 
 /** Cada cuánto se comprueba si otros usuarios han guardado cambios */
 export const INTERVALO_SINCRONIZACION = 15_000
@@ -43,6 +45,7 @@ export interface DatosUsuarioForm {
 
 interface Ctx {
   fase: Fase
+  pasoCarga: PasoCarga
   error: string
   carpetaGuardada: { tipo: Origen; nombre: string } | null
   nombreCarpeta: string
@@ -135,6 +138,7 @@ type OpNueva = Operacion extends infer T ? T extends Operacion ? Omit<T, 'id' | 
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [fase, setFase] = useState<Fase>(() => (urlPuente() ? 'cargando' : 'inicio'))
+  const [pasoCarga, setPasoCarga] = useState<PasoCarga>('conectar')
   const [error, setError] = useState('')
   const [conexion, setConexion] = useState<fs.ConexionGuardada | null>(null)
   const [sesionCaducada, setSesionCaducada] = useState(false)
@@ -286,7 +290,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setSesionCaducada(true)
           if (pendientes.current.length) setGuardado({ estado: 'error', mensaje: 'Sin guardar: la sesión de Google ha caducado' })
         } else if (pendientes.current.length) {
-          setGuardado({ estado: 'error', mensaje: 'No se pudo guardar: ' + (e instanceof Error ? e.message : String(e)) + '. Se reintentará.' })
+          setGuardado({ estado: 'error', mensaje: 'No se pudo guardar: ' + (e instanceof Error ? e.message : String(e)).replace(/\.$/, '') + '. Se reintentará.' })
         }
         throw e
       }
@@ -404,6 +408,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   /** Abre datos.sqlite de la carpeta y pide entrar (o proteger el archivo si aún no está cifrado) */
   const abrirCarpeta = useCallback(async (h: fs.Carpeta) => {
     setFase('cargando')
+    setPasoCarga('conectar')
     setError('')
     try {
       handle.current = h
@@ -422,6 +427,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setFase('sin-bd')
           return
         }
+        setPasoCarga('leer')
         leido = await fs.leerBytes(h, 'datos.sqlite')
       } catch (e) {
         // Conexión directa sin sesión iniciada: hay que entrar con usuario y contraseña
@@ -434,6 +440,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         throw e
       }
       const { datos, marca } = leido
+      setPasoCarga('abrir')
       if (cif.estaCifrado(datos)) {
         // Al recargar la pestaña no se vuelve a pedir la contraseña
         const sesion = leerSesion(h.nombre)
@@ -863,7 +870,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const sincronizarAhora = useCallback(() => sincronizar().catch(() => undefined), [sincronizar])
 
   const valor = useMemo<Ctx>(() => ({
-    fase, error, nombreCarpeta, registros, entidades, informeMigracion, cerrarInforme: () => setInformeMigracion(null), guardado, ivaPct, config, dirRaiz, sesionCaducada,
+    fase, pasoCarga, error, nombreCarpeta, registros, entidades, informeMigracion, cerrarInforme: () => setInformeMigracion(null), guardado, ivaPct, config, dirRaiz, sesionCaducada,
     carpetaGuardada: conexion ? { tipo: conexion.tipo, nombre: conexion.nombre } : null,
     origen: dirRaiz?.tipo ?? null,
     usuario, usuarios, conClave, avisoAcceso, adminPropuesto, puede, remap, ultimaSincronizacion, codigoRecuperacion, cerrarCodigo: () => setCodigoRecuperacion(null),
@@ -872,7 +879,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     entrar, salir, proteger, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,
     crear, actualizar, eliminar, guardarConfig, sincronizarAhora,
     listarCopias: listar, copiaAhora, restaurar,
-  }), [fase, error, conexion, nombreCarpeta, registros, entidades, informeMigracion, guardado, ivaPct, config, dirRaiz, sesionCaducada,
+  }), [fase, pasoCarga, error, conexion, nombreCarpeta, registros, entidades, informeMigracion, guardado, ivaPct, config, dirRaiz, sesionCaducada,
     usuario, usuarios, conClave, avisoAcceso, adminPropuesto, puede, remap, ultimaSincronizacion, codigoRecuperacion,
     continuar, elegirOtra, cambiarCarpeta, buscarEnDrive, abrirEnDrive, reconectar, crearBDVacia, abrirPuente, activarPuente, accesosPuente,
     entrar, salir, proteger, recuperarClave, cambiarMiClave, nuevoCodigo, guardarUsuario, borrarUsuario,

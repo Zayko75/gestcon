@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { clientId, clientIdDeConfiguracion, guardarClientId, type CandidatoDrive } from '../lib/drive'
 import { fechaHoraES } from '../lib/format'
 import { soportado } from '../lib/fs'
-import { useStore } from '../lib/store'
+import { useStore, type PasoCarga } from '../lib/store'
 import { Marca } from './Cabecera'
 
 function IconoDrive({ blanco = false }: { blanco?: boolean }) {
@@ -137,24 +137,46 @@ export function MarcoConexion({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** Pantalla de carga: los pasos de abrir los datos, marcando los que ya se han hecho */
+function PasosCarga({ puente, paso }: { puente: boolean; paso: PasoCarga }) {
+  const pasos: { id: PasoCarga; texto: string }[] = [
+    { id: 'conectar', texto: puente ? 'Conectar con Google Drive' : 'Abrir la carpeta' },
+    { id: 'leer', texto: 'Descargar los datos' },
+    { id: 'abrir', texto: 'Abrir y comprobar los datos' },
+  ]
+  const actual = pasos.findIndex((p) => p.id === paso)
+  return (
+    <div role="status" aria-live="polite">
+      <h1 className="titulo">Abriendo los datos…</h1>
+      <p className="mt-3 text-tinta/65">Puede tardar unos segundos{puente ? ' con Google Drive' : ''}.</p>
+      <ol className="mt-7 space-y-3.5">
+        {pasos.map((p, i) => {
+          const hecho = i < actual, enCurso = i === actual
+          return (
+            <li key={p.id} className={`flex items-center gap-3 text-[0.98rem] ${hecho ? 'text-tinta/60' : enCurso ? 'font-semibold text-tinta' : 'text-tinta/35'}`}>
+              <span aria-hidden="true" key={hecho ? 'hecho' : 'falta'} className={`grid size-6 shrink-0 place-items-center rounded-full border-2 transition-colors duration-200 ${hecho ? 'animate-marca border-ok bg-ok text-white' : enCurso ? 'border-indigo' : 'border-linea'}`}>
+                {hecho
+                  ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                  : enCurso ? <span className="size-2.5 animate-pulse rounded-full bg-indigo" /> : null}
+              </span>
+              {p.texto}
+              <span className="sr-only">{hecho ? ' (hecho)' : enCurso ? ' (en curso)' : ''}</span>
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
 export function PantallaConexion() {
-  const { fase, error, carpetaGuardada, continuar, elegirOtra, crearBDVacia, nombreCarpeta, dirRaiz, hayPuente, reintentar } = useStore()
+  const { fase, pasoCarga, error, carpetaGuardada, continuar, elegirOtra, crearBDVacia, nombreCarpeta, dirRaiz, hayPuente, reintentar } = useStore()
   const local = soportado()
 
   return (
     <MarcoConexion>
           {fase === 'cargando' ? (
-            hayPuente ? (
-              <div role="status">
-                <h1 className="titulo">Conectando…</h1>
-                <p className="mt-3 text-tinta/65">Abriendo los datos de Google Drive.</p>
-              </div>
-            ) :
-
-            <div role="status">
-              <h1 className="titulo">Abriendo los datos…</h1>
-              <p className="mt-3 text-tinta/65">Se está leyendo <code>datos.sqlite</code> y creando la copia de seguridad del día.</p>
-            </div>
+            <PasosCarga puente={dirRaiz ? dirRaiz.tipo !== 'local' : hayPuente} paso={pasoCarga} />
           ) : fase === 'sin-bd' ? (
             <div className="space-y-5">
               <h1 className="titulo">No hay base de datos</h1>
