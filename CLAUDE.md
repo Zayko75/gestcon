@@ -99,6 +99,14 @@ abrir el proyecto):
 | `/frontend-design:frontend-design` | Cualquier cambio visual de la app: pantallas nuevas, rediseños, tipografía, colores, jerarquía. Es la skill de diseño por defecto. |
 | `/animatedwebs:animatedwebs-components` | Detalles animados puntuales: botones, cargadores, estados vacíos, transiciones, efectos al pasar el ratón, pantalla de entrada. |
 | `/animatedwebs:animatedwebs-site` | Solo para páginas «de escaparate» separadas de la herramienta de trabajo (por ejemplo una portada o página de presentación de GESTCON). No para rehacer la app. |
+| `karpathy-guidelines` | Al escribir, revisar o refactorizar código: pensar antes de programar, lo más simple posible, cambios quirúrgicos y criterios de éxito comprobables. |
+
+`karpathy-guidelines` es una copia fija dentro del proyecto (`.claude/skills/karpathy-guidelines/`),
+revisada el 15/11/2026, del repositorio `multica-ai/andrej-karpathy-skills` (commit `2c60614`).
+No se instala como plugin para que no entren cambios sin revisar; para actualizarla, revisar
+antes la nueva versión. En GESTCON no hay pruebas automáticas: su «define criterios de éxito y
+comprueba» se cumple con `npm run typecheck`, `npm run build` y la prueba en el navegador.
+Si choca con estas instrucciones, mandan estas instrucciones.
 
 Límites al usar las skills de diseño y animación:
 - GESTCON es una herramienta de trabajo para personal no técnico: la claridad y la velocidad
