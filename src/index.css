@@ -13,8 +13,10 @@
 
 @layer components {
   /* Botones */
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-[0.9rem] font-semibold leading-5 transition-colors disabled:cursor-not-allowed disabled:opacity-45; }
-  .btn-primario { @apply btn bg-indigo text-white shadow-[0_1px_0_rgba(23,32,61,.25)] hover:bg-indigo-oscuro; }
+  /* Al pulsar, el botón se hunde un poco: confirma el clic sin retrasar nada */
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-[0.9rem] font-semibold leading-5 transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out enabled:active:translate-y-px enabled:active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-45; }
+  a.btn:active { @apply translate-y-px scale-[.98]; }
+  .btn-primario { @apply btn bg-indigo text-white shadow-[0_1px_0_rgba(23,32,61,.25)] hover:bg-indigo-oscuro hover:shadow-[0_6px_14px_-6px_rgba(44,52,135,.55)] active:shadow-[0_1px_0_rgba(23,32,61,.25)]; }
   .btn-sec { @apply btn border border-linea bg-white text-tinta hover:border-indigo/40 hover:bg-indigo-claro/60; }
   .btn-peligro { @apply btn border border-error/35 bg-white text-error hover:bg-error/[.07]; }
   .btn-texto { @apply btn px-2 text-indigo hover:bg-indigo-claro; }

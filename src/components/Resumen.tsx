@@ -51,7 +51,7 @@ function Presupuesto({ u, onCredito, editable }: { u: UsoAplicacion; onCredito: 
         <div className="relative mt-3 h-6" role="img"
           aria-label={`${eur(u.firme)} firmado o posterior y ${eur(u.enCurso)} en curso${u.credito !== null ? ` de un crédito de ${eur(u.credito)}` : ''}`}>
           <div className="absolute inset-y-1 left-0 right-0 rounded bg-papel" />
-          <div className="absolute inset-y-0 left-0 flex gap-[2px]" style={{ width: pct(u.total) }}>
+          <div className="absolute inset-y-0 left-0 flex origin-left animate-crecer gap-[2px] transition-[width] duration-500 ease-out" style={{ width: pct(u.total) }}>
             {u.firme > 0 && <div className="h-full rounded-l-[4px] last:rounded-r-[4px]" style={{ width: `${(u.firme / u.total) * 100}%`, background: FIRME }} title={`Firmado o posterior: ${eur(u.firme)}`} />}
             {u.enCurso > 0 && <div className="h-full first:rounded-l-[4px] rounded-r-[4px]" style={{ width: `${(u.enCurso / u.total) * 100}%`, background: EN_CURSO }} title={`En curso: ${eur(u.enCurso)}`} />}
           </div>
@@ -191,13 +191,13 @@ export function Resumen() {
           <table className="mt-3 w-full text-[0.9rem]">
             <thead className="sr-only"><tr><th>Estado</th><th>Patrocinios</th><th>Importe</th></tr></thead>
             <tbody>
-              {porEstado.map((e) => (
+              {porEstado.map((e, i) => (
                 <tr key={e.valor} className="border-t border-linea/60 first:border-0">
                   <td className="w-44 py-2.5 pr-3"><a href="#/" onClick={() => filtrarListado({ anio: String(anio), estado: e.valor })}><EstadoChip estado={e.valor} /></a></td>
                   <td className="w-10 py-2.5 text-right tabular-nums text-tinta/75">{e.n}</td>
                   <td className="py-2.5 pl-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-3 flex-1"><div className="h-full rounded-r-[4px]" style={{ width: `${(e.importe / maxEstado) * 100}%`, background: FIRMES.includes(e.valor) ? FIRME : EN_CURSO, minWidth: e.importe ? 2 : 0 }} /></div>
+                      <div className="h-3 flex-1"><div key={anio} className="h-full origin-left animate-crecer rounded-r-[4px]" style={{ width: `${(e.importe / maxEstado) * 100}%`, background: FIRMES.includes(e.valor) ? FIRME : EN_CURSO, minWidth: e.importe ? 2 : 0, animationDelay: `${i * 45}ms` }} /></div>
                       <span className="w-28 text-right tabular-nums">{eur(e.importe)}</span>
                     </div>
                   </td>
@@ -215,7 +215,7 @@ export function Resumen() {
             {porMes.map((m, i) => (
               <div key={i} className="flex h-full flex-1 flex-col items-center justify-end" title={`${MESES_LARGOS[i]}: ${m.n === 1 ? '1 patrocinio' : `${m.n} patrocinios`}, ${eur(m.importe)}`}>
                 {m.n > 0 && <span className="mb-1 text-[0.78rem] font-semibold tabular-nums text-tinta/75">{m.n}</span>}
-                <div className="w-full max-w-[24px] rounded-t-[4px]" style={{ height: `${(m.n / maxMes) * 82}%`, background: FIRME }} />
+                <div key={anio} className="w-full max-w-[24px] origin-bottom animate-subir rounded-t-[4px]" style={{ height: `${(m.n / maxMes) * 82}%`, background: FIRME, animationDelay: `${i * 30}ms` }} />
               </div>
             ))}
           </div>
@@ -230,10 +230,10 @@ export function Resumen() {
           <h2 id="t-mun" className="font-display text-[1.4rem] font-semibold leading-tight">Municipios con más patrocinios</h2>
           {municipios.length === 0 ? <p className="mt-3 text-tinta/60">Sin datos.</p> : (
             <ol className="mt-3 space-y-2 text-[0.9rem]">
-              {municipios.map(([k, v]) => (
+              {municipios.map(([k, v], i) => (
                 <li key={k} className="grid grid-cols-[minmax(0,9.5rem)_1fr_2rem] items-center gap-3" title={`${eur(v.importe)} en total`}>
                   <span className="truncate" title={v.nombre}>{v.nombre}</span>
-                  <span className="h-3"><span className="block h-full rounded-r-[4px]" style={{ width: `${(v.n / maxMun) * 100}%`, background: FIRME }} /></span>
+                  <span className="h-3"><span key={anio} className="block h-full origin-left animate-crecer rounded-r-[4px]" style={{ width: `${(v.n / maxMun) * 100}%`, background: FIRME, animationDelay: `${i * 35}ms` }} /></span>
                   <span className="text-right tabular-nums text-tinta/75">{v.n}</span>
                 </li>
               ))}

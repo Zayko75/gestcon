@@ -29,6 +29,11 @@ export default {
         desplegar: { from: { transform: 'translateY(-6px)', opacity: '0' }, to: { transform: 'none', opacity: '1' } },
         // Filas del listado al abrir la pantalla
         fila: { from: { transform: 'translateY(6px)', opacity: '0' }, to: { transform: 'none', opacity: '1' } },
+        // Barras de datos: crecen desde cero hasta su valor (horizontales y verticales)
+        crecer: { from: { transform: 'scaleX(0)' }, to: { transform: 'scaleX(1)' } },
+        subir: { from: { transform: 'scaleY(0)' }, to: { transform: 'scaleY(1)' } },
+        // Día actual de un evento en curso: un pulso al terminar de rellenarse
+        pulso: { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.35)' } },
       },
       animation: {
         marca: 'marca 320ms cubic-bezier(.3,.7,.4,1) both',
@@ -37,6 +42,9 @@ export default {
         fundido: 'fundido 160ms ease-out both',
         desplegar: 'desplegar 180ms ease-out both',
         fila: 'fila 260ms cubic-bezier(.2,.8,.3,1) both',
+        crecer: 'crecer 480ms cubic-bezier(.2,.8,.3,1) both',
+        subir: 'subir 420ms cubic-bezier(.2,.8,.3,1) both',
+        pulso: 'pulso 360ms ease-in-out both',
       },
     },
   },

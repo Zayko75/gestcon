@@ -36,6 +36,17 @@ export function AvisosProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// ---------- Indicador de trabajo ----------
+/** Pequeño círculo que gira dentro de un botón mientras dura su acción (generar, crear copia…) */
+export function Girando() {
+  return (
+    <svg className="size-[0.95em] shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity=".25" strokeWidth="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 // ---------- Diálogo ----------
 export function Dialogo({ titulo, children, acciones, onCerrar }: { titulo: string; children: ReactNode; acciones: ReactNode; onCerrar?: () => void }) {
   useEffect(() => {

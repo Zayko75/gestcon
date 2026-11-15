@@ -295,7 +295,8 @@ export function Listado() {
                   onClick={() => (location.hash = `#/registro/${r.id}`)}>
                   <td className="relative py-3 pl-4 pr-2 align-middle">
                     {/* Marca del estado: una barra fina del color del estado, para localizarlo de un vistazo */}
-                    <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: TONO_ESTADO[r.estado].barra }} />
+                    <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 origin-top ${entrada && i < 14 ? 'animate-subir' : ''}`}
+                      style={{ backgroundColor: TONO_ESTADO[r.estado].barra, animationDelay: entrada && i < 14 ? `${i * 28 + 120}ms` : undefined }} />
                     <Dorsal numero={r.num_contrato} />
                   </td>
                   <td className="px-4 py-3 align-middle">

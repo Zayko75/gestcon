@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { fechaHoraES, tamanoLegible } from '../lib/format'
 import { useStore } from '../lib/store'
 import type { Copia } from '../types'
-import { Dialogo, useAviso } from './ui'
+import { Dialogo, Girando, useAviso } from './ui'
 
 const MOTIVOS: Record<string, string> = {
   '': 'Automática del día',
@@ -56,7 +56,7 @@ export function Copias() {
             Se guarda una sola copia de los datos en la carpeta «backups»: cada copia nueva sustituye a la anterior. Se hace sola la primera vez que se abre la aplicación cada día, y también antes de eliminar un patrocinio o de restaurar.
           </p>
         </div>
-        <button className="btn-primario" onClick={crear} disabled={ocupado}>{ocupado ? 'Creando copia…' : 'Crear copia ahora'}</button>
+        <button className="btn-primario" onClick={crear} disabled={ocupado}>{ocupado ? <><Girando />Creando copia…</> : 'Crear copia ahora'}</button>
       </div>
 
       <div className="mt-8 overflow-hidden rounded-xl border border-linea bg-white">

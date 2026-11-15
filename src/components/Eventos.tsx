@@ -31,12 +31,18 @@ function Recorrido({ r, hoy }: { r: Patrocinio; hoy: string }) {
       <div className="mt-2 flex h-2.5 gap-[3px]" role="img" aria-label={`${texto}. ${termina}.`}>
         {total <= 31
           ? Array.from({ length: total }, (_, i) => (
-            <span key={i} className={`h-full flex-1 rounded-[2px] ${i + 1 === dia && total > 1 ? 'ring-2 ring-offset-1' : ''}`}
-              style={{ background: i + 1 <= dia ? tono.barra : tono.fondo, ['--tw-ring-color' as string]: tono.barra }} />
+            // Los días transcurridos se rellenan uno tras otro al abrir; el día de hoy hace un pulso al final
+            <span key={i} className="relative h-full flex-1 overflow-visible rounded-[2px]" style={{ background: tono.fondo }}>
+              {i + 1 <= dia && (
+                <span className={`absolute inset-0 origin-left rounded-[2px] ${i + 1 === dia && total > 1 ? 'animate-[crecer_480ms_cubic-bezier(.2,.8,.3,1)_both,pulso_360ms_ease-in-out_forwards] ring-2 ring-offset-1' : 'animate-crecer'}`}
+                  style={{ background: tono.barra, ['--tw-ring-color' as string]: tono.barra,
+                    animationDelay: i + 1 === dia && total > 1 ? `${i * 25}ms, ${i * 25 + 420}ms` : `${i * 25}ms` }} />
+              )}
+            </span>
           ))
           : (
             <span className="relative h-full flex-1 overflow-hidden rounded-[3px]" style={{ background: tono.fondo }}>
-              <span className="absolute inset-y-0 left-0 rounded-[3px]" style={{ width: `${(dia / total) * 100}%`, background: tono.barra }} />
+              <span className="absolute inset-y-0 left-0 origin-left animate-crecer rounded-[3px]" style={{ width: `${(dia / total) * 100}%`, background: tono.barra }} />
             </span>
           )}
       </div>
