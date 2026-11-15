@@ -120,3 +120,39 @@ Límites al usar las skills de diseño y animación:
 - Nunca alteran los documentos Word generados ni las plantillas.
 - Propón los cambios visuales como lista numerada para que Bienve elija, y verifica con
   `npm run build` y una prueba en el navegador antes de darlos por terminados.
+
+## Directrices de animación
+Pautas acordadas con Bienve (noviembre 2026). Reutiliza lo que ya existe antes de crear algo nuevo.
+
+**Cuándo animar**
+- Solo para responder a una acción (pulsar, abrir, guardar, cambiar de estado) o para un único
+  momento al abrir una pantalla (las barras del Resumen, las primeras filas del listado).
+- Nunca al escribir, filtrar o buscar: lo que se repite a cada momento no se anima.
+- Nada en bucle, salvo los indicadores de trabajo mientras dura la acción
+  (`animate-pulse` del guardado, `Girando` en los botones).
+- Lo importante no depende de la animación: el texto o el estado final se ven igual sin ella.
+
+**Cómo animar**
+- Duración de 150 a 500 ms. Escalonados: entre 25 y 45 ms por elemento y como mucho unos
+  14 elementos (el resto aparece directamente).
+- Solo `transform` y `opacity` (y `transition-[width]` en barras de datos que cambian de valor).
+  Nada que mueva el resto de la página ni retrase poder escribir o pulsar.
+- Las barras de datos crecen desde su origen (`origin-left` u `origin-bottom`), sin rebotes.
+- Color de las animaciones de estado: siempre `TONO_ESTADO` (`src/components/ui.tsx`).
+
+**Dónde está cada pieza**
+- Animaciones con nombre en `tailwind.config.js` (`keyframes` / `animation`): `marca`
+  (confirmar, ✓), `entrar` (avisos), `aparecer` y `fundido` (diálogos), `desplegar` (paneles),
+  `fila` (filas del listado), `crecer` / `subir` (barras), `pulso` (día actual de un evento).
+  Para algo nuevo, añádelo ahí con nombre en español, no con estilos sueltos.
+- Botones: la respuesta al pulsar está en `.btn` (`src/index.css`); los botones nuevos usan
+  las clases `.btn-*` y la heredan. Acciones largas: `<Girando />` + texto en gerundio
+  («Generando…»), con el botón desactivado.
+- `prefers-reduced-motion`: la regla global de `src/index.css` desactiva todas las animaciones
+  y transiciones; no hace falta repetirla en cada componente. El desplazamiento suave por
+  código debe comprobarlo (como el índice de la ficha).
+
+**Comprobar**
+- Probar en el navegador a escritorio y a 390 px, sin desbordes horizontales
+  (`scrollWidth` igual al ancho de la ventana).
+- Sin librerías de animación nuevas sin consultar (ver «Límites» arriba).
