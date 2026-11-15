@@ -89,7 +89,8 @@ interface Ctx {
   accesosPuente: () => Promise<string[] | null>
   activarPuente: (codigo: string) => Promise<void>
   entrar: (usuario: string, clave: string) => Promise<void>
-  salir: () => void
+  /** Cierra la sesión; «motivo» se muestra en la pantalla de entrada (p. ej. por inactividad) */
+  salir: (motivo?: string) => void
   proteger: (d: { nombre: string; usuario: string; clave: string }) => Promise<string>
   /** Nombre del administrador que ya existía en el archivo sin proteger, para proponerlo */
   adminPropuesto: string
@@ -603,7 +604,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [abrirComo])
 
-  const salir = useCallback(() => {
+  const salir = useCallback((motivo?: string) => {
     const h = handle.current
     // Lo pendiente se guarda antes de olvidar la clave
     sincronizar().catch(() => undefined).finally(() => {
@@ -620,7 +621,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setUsuario(null)
     usuarioRef.current = null
     setRegistros([]); setEntidades([]); setUsuarios([])
-    setAvisoAcceso('')
+    setAvisoAcceso(motivo ?? '')
     setFase('acceso')
   }, [sincronizar])
 

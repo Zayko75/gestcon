@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DialogoCodigo, PantallaAcceso } from './components/Acceso'
 import { Cabecera } from './components/Cabecera'
 import { PantallaConexion } from './components/Conexion'
@@ -78,6 +78,46 @@ function FranjaErrorGuardado() {
   )
 }
 
+/** Minutos sin actividad tras los que se cierra la sesión (por seguridad); se avisa 1 minuto antes */
+const INACTIVIDAD_MIN = 30
+const AVISO_S = 60
+
+/** Cierra la sesión si nadie toca la aplicación durante INACTIVIDAD_MIN minutos */
+function VigilanteInactividad() {
+  const { salir } = useStore()
+  const ultima = useRef(Date.now())
+  const [quedan, setQuedan] = useState<number | null>(null) // segundos que faltan, mientras se muestra el aviso
+  const avisando = useRef(false)
+  avisando.current = quedan !== null
+
+  useEffect(() => {
+    // Durante el aviso, solo «Seguir trabajando» mantiene la sesión
+    const actividad = () => { if (!avisando.current) ultima.current = Date.now() }
+    const eventos = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart', 'scroll'] as const
+    eventos.forEach((e) => window.addEventListener(e, actividad, { passive: true, capture: true }))
+    // Se compara con la hora: también funciona si el ordenador se suspende o la pestaña queda en segundo plano
+    const t = setInterval(() => {
+      const resto = INACTIVIDAD_MIN * 60 - (Date.now() - ultima.current) / 1000
+      if (resto <= 0) salir(`Se ha cerrado la sesión tras ${INACTIVIDAD_MIN} minutos sin actividad. Vuelve a entrar para seguir.`)
+      else setQuedan(resto <= AVISO_S ? Math.ceil(resto) : null)
+    }, 1000)
+    return () => {
+      eventos.forEach((e) => window.removeEventListener(e, actividad, { capture: true }))
+      clearInterval(t)
+    }
+  }, [salir])
+
+  const seguir = () => { ultima.current = Date.now(); setQuedan(null) }
+  if (quedan === null) return null
+  return (
+    <Dialogo titulo="¿Sigues ahí?" onCerrar={seguir}
+      acciones={<><button className="btn-sec" onClick={() => salir()}>Cerrar sesión</button><button className="btn-primario" onClick={seguir} autoFocus>Seguir trabajando</button></>}>
+      <p>Por seguridad, la sesión se cerrará en <strong className="tabular-nums">{quedan} s</strong> si no hay actividad.</p>
+      <p>Tus cambios se guardan antes de cerrar.</p>
+    </Dialogo>
+  )
+}
+
 function Contenido() {
   const { fase, remap, puede } = useStore()
   const ruta = useRuta()
@@ -110,6 +150,7 @@ function Contenido() {
       <div className="lg:pl-64"><FranjaErrorGuardado />{pantalla}</div>
       <DialogoActualizacion />
       <DialogoCodigo />
+      <VigilanteInactividad />
     </>
   )
 }

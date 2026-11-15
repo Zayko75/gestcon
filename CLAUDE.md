@@ -17,8 +17,9 @@ Las 5 fases originales están TERMINADAS y la app ha evolucionado más allá del
   La carpeta local/de red con File System Access API sigue disponible como alternativa.
 - **Multiusuario con roles** (consulta / edición / administración), usuario y contraseña
   propios de GESTCON, `datos.sqlite` **cifrado** (AES-256-GCM, llaves por usuario con
-  PBKDF2), código de recuperación, combinación de cambios entre usuarios y
-  sincronización cada 15 s.
+  PBKDF2), código de recuperación, combinación de cambios entre usuarios,
+  sincronización cada 15 s y cierre de sesión tras 30 min sin actividad
+  (`INACTIVIDAD_MIN` en `src/App.tsx`; aviso 1 min antes).
 - Esquema SQLite **versión 6** (`VERSION_ESQUEMA` en `src/lib/schema.ts`; migraciones
   v1→…→v6 en `src/lib/db.ts`). v5 añadió los estados «Pendiente de factura» y «Pagado»;
   v6 (13/11/2026) pasó a «Pagado» los patrocinios de años anteriores a 2026.

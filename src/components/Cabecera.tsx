@@ -117,7 +117,7 @@ export function Cabecera({ ruta }: { ruta: string }) {
             <div className="text-white/50">{textoRol(usuario.rol)}</div>
             <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
               {<button onClick={() => setCambiandoClave(true)} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cambiar contraseña</button>}
-              <button onClick={salir} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cerrar sesión</button>
+              <button onClick={() => salir()} className="text-white/65 underline decoration-white/30 underline-offset-4 hover:text-white">Cerrar sesión</button>
             </div>
           </div>
         )}
@@ -133,7 +133,7 @@ export function Cabecera({ ruta }: { ruta: string }) {
       {usuario && (
         <div className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-1.5 text-[0.8rem] text-white/70 lg:hidden">
           <span className="truncate">{usuario.nombre} ({textoRol(usuario.rol).toLowerCase()})</span>
-          <button onClick={salir} className="shrink-0 underline decoration-white/30 underline-offset-4">Cerrar sesión</button>
+          <button onClick={() => salir()} className="shrink-0 underline decoration-white/30 underline-offset-4">Cerrar sesión</button>
         </div>
       )}
       {cambiandoClave && <DialogoClave onCerrar={() => setCambiandoClave(false)} />}

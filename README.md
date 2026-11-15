@@ -182,7 +182,7 @@ Patrocinios/
 
 **Cómo se entra.** Siempre con **usuario y contraseña de GESTCON**, tanto si los datos están en Google Drive como en una carpeta de red.
 1. En cada ordenador, la primera vez, se conecta la carpeta: con Google Drive (con una cuenta de Google que tenga acceso a la carpeta, por ejemplo la del servicio) o eligiendo la carpeta de red. Si Google muestra «Google no ha verificado esta aplicación», pulsa **Configuración avanzada → Ir a GESTCON**: solo ocurre esa vez.
-2. Después, cada persona escribe su usuario y contraseña. Al recargar la pestaña no se vuelve a pedir; al pulsar *Cerrar sesión* o cerrar la pestaña, sí.
+2. Después, cada persona escribe su usuario y contraseña. Al recargar la pestaña no se vuelve a pedir; al pulsar *Cerrar sesión* o cerrar la pestaña, sí. Por seguridad, tras **30 minutos sin actividad** la sesión se cierra sola: un minuto antes aparece un aviso con cuenta atrás y el botón *Seguir trabajando*. Los cambios se guardan antes de cerrar.
 
 **La primera vez con esta versión.** La aplicación actualiza `datos.sqlite` (con copia previa) y muestra *Protege los datos*: escribe tu nombre, usuario y contraseña de administrador. A partir de ese momento el archivo queda **cifrado**. Después se muestra un **código de recuperación**: apúntalo y guárdalo fuera de la carpeta.
 

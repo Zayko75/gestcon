@@ -144,7 +144,7 @@ function CambiarClave() {
       <Campo id="c-repetir" etiqueta="Repite la contraseña nueva"><input id="c-repetir" type="password" className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value)} autoComplete="new-password" required /></Campo>
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Guardando…' : 'Guardar y entrar'}</button>
-        <button type="button" className="btn-texto" onClick={salir}>Salir</button>
+        <button type="button" className="btn-texto" onClick={() => salir()}>Salir</button>
       </div>
     </form>
   )
@@ -169,7 +169,7 @@ function Activar() {
       </Campo>
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Activando…' : 'Activar y entrar'}</button>
-        <button type="button" className="btn-texto" onClick={salir}>Salir</button>
+        <button type="button" className="btn-texto" onClick={() => salir()}>Salir</button>
       </div>
     </form>
   )
