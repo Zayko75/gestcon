@@ -152,6 +152,7 @@ Patrocinios/
 - **Fechas del evento**: primer y último día como fechas; el texto de celebración se propone solo y se puede retocar (para días sueltos, escríbelo a mano).
 - **Importe en letra**: se escribe solo a partir del importe y del tipo de IVA del patrocinio.
 - **Soportes cedidos y propios**: escribe un soporte y pulsa **Intro**. Mientras escribes se proponen los usados en otros patrocinios (la primera propuesta se añade con Intro; las flechas eligen otra). Pulsa un soporte para corregirlo; las flechas lo suben o bajan y la ✕ lo quita. Se guardan como siempre, uno por línea con guion («- Soporte.»).
+- **Incidencias en la tramitación** (apartado *Tramitación*, al final de la ficha): escribe la fecha (hoy por defecto) y la deficiencia y pulsa **Intro**. Quedan ordenadas por fecha, de la más antigua a la más reciente. Marca el círculo de la izquierda cuando se subsane (queda tachada, con la fecha en que se subsanó; pulsarlo otra vez la deja pendiente). Pulsa la fecha o el texto para corregirlos y la ✕ para quitarla. Arriba se ve cuántas quedan pendientes. Es solo informativo: **no sale en los documentos** y no se copia al duplicar ni al renovar.
 - **Soportes enumerados**: se vuelve a escribir solo, con las dos listas separadas por comas, cada vez que añades, quitas u ordenas un soporte. Se puede retocar.
 - **Duplicar** crea una copia del patrocinio sin nº de contrato ni fecha de firma (útil cuando una entidad repite).
 - **Eliminar** (solo administradores) pide confirmación y deja antes una copia de seguridad.
@@ -258,7 +259,8 @@ src/
 │   ├── control.ts              contrato menor, crédito por aplicación, pendientes, municipios
 │   ├── excel.ts                exportación a .xlsx (escrita con PizZip)
 │   ├── textos.ts               importe en letra, fechas del evento, soportes enumerados
-│   ├── schema.ts               esquema SQLite (versión 2)
+│   ├── schema.ts               esquema SQLite (versión 7)
+│   ├── incidencias.ts          incidencias en la tramitación (lista con fecha y subsanada)
 │   ├── municipios.ts           municipios de la provincia (sugerencias)
 │   └── borrador.ts             formulario ⇄ base de datos
 docs/
@@ -270,7 +272,7 @@ Pila: React 18, Vite, Tailwind CSS, TypeScript, [sql.js](https://sql.js.org), [d
 
 ### Base de datos
 
-`datos.sqlite` (esquema versión 4) se guarda cifrado: `GESTCON1` + cabecera con las llaves de los usuarios activos (la clave del archivo envuelta con la contraseña de cada uno, PBKDF2-SHA256 + AES-GCM) + la base de datos cifrada con AES-256-GCM. Dentro tiene:
+`datos.sqlite` (esquema versión 7) se guarda cifrado: `GESTCON1` + cabecera con las llaves de los usuarios activos (la clave del archivo envuelta con la contraseña de cada uno, PBKDF2-SHA256 + AES-GCM) + la base de datos cifrada con AES-256-GCM. Dentro tiene:
 - `patrocinios`: un registro por expediente. La clave es `id`; `num_contrato` se reinicia cada año y puede repetirse. Guarda su propia copia de los datos de la entidad, el estado, las fechas de inicio y fin, el tipo de IVA y los importes en letra.
 - `entidades`: una por CIF (agrupado sin espacios ni guiones, sin modificar cómo está escrito), con los datos de su patrocinio más reciente.
 - `usuarios`: nombre, usuario, rol, si está activo y si debe cambiar la contraseña. Las contraseñas no se guardan.

@@ -1,7 +1,7 @@
 // Esquema de datos.sqlite (versión 6; la 5 añadió los estados «pendiente de factura» y «pagado» y la 6 marcó como pagados los años anteriores a 2026). Se usa al crear una base de datos vacía y en la migración desde la versión 1.
 // Copia legible en docs/esquema.sql.
 
-export const VERSION_ESQUEMA = 6
+export const VERSION_ESQUEMA = 7
 
 export const ESTADOS = ['preparacion', 'pendiente_firma', 'firmado', 'pendiente_factura', 'tramitado', 'pagado'] as const
 
@@ -57,6 +57,8 @@ CREATE TABLE ${tablaPatrocinios} (
   aplicacion             TEXT NOT NULL DEFAULT '',   -- 0000/0000/0000/00000
   importe_reding         REAL NOT NULL DEFAULT 0 CHECK (importe_reding >= 0),
   fecha_firma            TEXT ${fecha('fecha_firma')},
+  -- Tramitación (solo informativo, no sale en los documentos)
+  incidencias            TEXT NOT NULL DEFAULT '',   -- JSON [{fecha, texto, subsanada}] (versión 7)
   -- Control
   creado                 TEXT NOT NULL DEFAULT (datetime('now')),
   modificado             TEXT NOT NULL DEFAULT (datetime('now')),

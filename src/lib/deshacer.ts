@@ -3,6 +3,7 @@
 // Los pasos se recuerdan mientras la pestaña está abierta (también al ir y volver entre fichas).
 // Deshacer guarda los valores anteriores como un cambio más, así se combina bien con los cambios de otros usuarios.
 import type { DatosPatrocinio, Estado } from '../types'
+import { resumenIncidencias } from './incidencias'
 import { eur, fechaES } from './format'
 
 export interface Paso {
@@ -63,7 +64,7 @@ export const NOMBRE_CAMPO: Record<keyof DatosPatrocinio, string> = {
   soportes_propios: 'Soportes propios', soportes_enumerados: 'Soportes enumerados', num_contrato: 'Nº de contrato',
   importe_total: 'Importe total', iva_pct: 'Tipo de IVA', importe_letra: 'Importe en letra',
   importe_letra_sin_iva: 'Importe en letra sin IVA', aplicacion: 'Aplicación presupuestaria',
-  importe_reding: 'Importe REDING', fecha_firma: 'Fecha de firma',
+  importe_reding: 'Importe REDING', fecha_firma: 'Fecha de firma', incidencias: 'Incidencias',
 }
 
 const TEXTO_ESTADO: Record<Estado, string> = { preparacion: 'En preparación', pendiente_firma: 'Pendiente de firma', firmado: 'Firmado', pendiente_factura: 'Pendiente de factura', tramitado: 'Tramitado', pagado: 'Pagado' }
@@ -85,6 +86,7 @@ export function camposVisibles(paso: Paso): (keyof DatosPatrocinio)[] {
 export function valorLegible(campo: keyof DatosPatrocinio, v: unknown): string {
   if (v === null || v === undefined || v === '') return '(vacío)'
   if (campo === 'estado') return TEXTO_ESTADO[v as Estado] ?? String(v)
+  if (campo === 'incidencias') return resumenIncidencias(String(v))
   if (campo === 'importe_total' || campo === 'importe_reding') return eur(Number(v))
   if (campo === 'iva_pct') return `${String(v).replace('.', ',')} %`
   if (/^fecha_(inicio|fin|firma)$|^plazo_ejecucion$/.test(campo)) return fechaES(String(v))

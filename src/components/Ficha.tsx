@@ -10,6 +10,7 @@ import { useStore } from '../lib/store'
 import { aplicacionPorDefecto, claveCif, emailValido, formatoAplicacion, formatoDni, letraDni, soportesEnumerados, textoDeFechas, variasLineas } from '../lib/textos'
 import type { DatosPatrocinio, Entidad, Estado, Patrocinio } from '../types'
 import { EntradaMascara } from './EntradaMascara'
+import { ListaIncidencias } from './ListaIncidencias'
 import { ListaSoportes, sugerenciasDeSoportes } from './ListaSoportes'
 import { PanelDocumentos } from './PanelDocumentos'
 import { Dialogo, Dorsal, RecorridoEstado, useAviso } from './ui'
@@ -37,6 +38,7 @@ const SECCIONES = [
   { id: 's-entidad', texto: 'Entidad' },
   { id: 's-evento', texto: 'Evento' },
   { id: 's-contrato', texto: 'Contrato e importes' },
+  { id: 's-incidencias', texto: 'Incidencias' },
   { id: 's-documentos', texto: 'Documentos' },
 ]
 
@@ -362,7 +364,7 @@ export function Ficha({ id }: { id: number | null }) {
   const duplicar = async () => {
     if (!guardado || 'error' in parsed) return
     if (!(await guardarAhora())) return
-    const copia = { ...parsed.datos, estado: 'preparacion' as Estado, num_contrato: null, fecha_firma: null }
+    const copia = { ...parsed.datos, estado: 'preparacion' as Estado, num_contrato: null, fecha_firma: null, incidencias: '' }
     const nuevoId = await crear(copia)
     aviso('Se ha creado una copia sin nº de contrato ni fecha de firma. Ya puedes editarla.')
     location.hash = `#/registro/${nuevoId}`
@@ -562,6 +564,10 @@ export function Ficha({ id }: { id: number | null }) {
             )}
             <Campo id="f-importe_reding" etiqueta="Importe REDING"><input {...texto('importe_reding')} inputMode="decimal" placeholder="0,00" /></Campo>
             <Campo id="f-fecha_firma" etiqueta="Fecha de firma" ayuda="Solo se usa en el Informe de justificación"><input {...texto('fecha_firma')} type="date" /></Campo>
+          </Seccion>
+
+          <Seccion ancla="s-incidencias" titulo="Tramitación" descripcion="Deficiencias del expediente y su subsanación. No sale en los documentos.">
+            <ListaIncidencias className="sm:col-span-2" id="f-incidencias" valor={b.incidencias} onCambio={(v) => set('incidencias', v)} />
           </Seccion>
 
           </div>

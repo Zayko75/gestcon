@@ -28,6 +28,8 @@ export interface Patrocinio {
   aplicacion: string
   importe_reding: number
   fecha_firma: string | null
+  /** Incidencias en la tramitación (JSON, ver lib/incidencias.ts). Solo informativo: no sale en los documentos. */
+  incidencias: string
   creado: string
   modificado: string
   creado_por: string
@@ -74,6 +76,8 @@ export interface InformeMigracion {
   fechasDeducidas: number
   /** Versión 6: patrocinios de años anteriores a 2026 marcados como pagados */
   pagados?: number
+  /** Versión 7: incidencias en la tramitación */
+  incidencias?: boolean
   cambiosTexto: { id: number; campo: string; antes: string; despues: string }[]
 }
 

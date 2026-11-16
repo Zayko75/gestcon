@@ -20,13 +20,17 @@ Las 5 fases originales están TERMINADAS y la app ha evolucionado más allá del
   PBKDF2), código de recuperación, combinación de cambios entre usuarios,
   sincronización cada 15 s y cierre de sesión tras 30 min sin actividad
   (`INACTIVIDAD_MIN` en `src/App.tsx`; aviso 1 min antes).
-- Esquema SQLite **versión 6** (`VERSION_ESQUEMA` en `src/lib/schema.ts`; migraciones
-  v1→…→v6 en `src/lib/db.ts`). v5 añadió los estados «Pendiente de factura» y «Pagado»;
-  v6 (13/11/2026) pasó a «Pagado» los patrocinios de años anteriores a 2026.
+- Esquema SQLite **versión 7** (`VERSION_ESQUEMA` en `src/lib/schema.ts`; migraciones
+  v1→…→v7 en `src/lib/db.ts`). v5 añadió los estados «Pendiente de factura» y «Pagado»;
+  v6 (13/11/2026) pasó a «Pagado» los patrocinios de años anteriores a 2026;
+  v7 (16/11/2026) añadió la columna `incidencias` (JSON `[{fecha, texto, subsanada}]`,
+  `src/lib/incidencias.ts`): incidencias de la tramitación, solo informativas, **no salen en
+  los documentos** y no se copian al duplicar ni al renovar.
 - Funciones añadidas: estados del expediente (En preparación → Pendiente de firma →
   Firmado → Pendiente de factura → Tramitado → Pagado), entidades, calendario, eventos,
   pendientes, resumen con crédito por aplicación y límite de contrato menor, exportación
-  a Excel, deshacer/rehacer, renovar patrocinio.
+  a Excel, deshacer/rehacer, renovar patrocinio, incidencias en la tramitación (apartado
+  «Tramitación» de la ficha).
 - Copia de seguridad: actualmente se conserva **una sola copia** diaria en `backups/`.
 - Además de GitHub Pages, se puede servir con Docker (`Dockerfile` + `docker-compose.yml`,
   nginx en el puerto 8080).

@@ -15,7 +15,7 @@ export const CAMPOS: (keyof DatosPatrocinio)[] = [
   'anualidad', 'evento', 'fecha_celebracion', 'fecha_inicio', 'fecha_fin', 'plazo_ejecucion', 'municipios',
   'soportes_cedidos', 'soportes_propios', 'soportes_enumerados',
   'num_contrato', 'importe_total', 'iva_pct', 'importe_letra', 'importe_letra_sin_iva', 'aplicacion',
-  'importe_reding', 'fecha_firma',
+  'importe_reding', 'fecha_firma', 'incidencias',
 ]
 
 /** Traduce el error de una regla de la base de datos a un mensaje para el usuario */
@@ -260,6 +260,7 @@ export function migrar(db: Database): InformeMigracion | null {
     if (desde < 4) migrarA4(db)
     if (desde < 5) migrarA5(db)
     if (desde < 6) informe.pagados = migrarA6(db)
+    if (desde < 7) { migrarA7(db); informe.incidencias = true }
     db.exec(`INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','${VERSION_ESQUEMA}')
              ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor`)
     db.exec(`PRAGMA user_version = ${VERSION_ESQUEMA}`)
@@ -302,6 +303,12 @@ function migrarA6(db: Database): number {
   db.exec(`UPDATE patrocinios SET estado = 'pagado', modificado = datetime('now'), modificado_por = 'Actualización de GESTCON'
     WHERE estado <> 'pagado' AND COALESCE(anualidad, CAST(substr(fecha_inicio, 1, 4) AS INTEGER)) < 2026`)
   return Number(db.exec('SELECT changes()')[0].values[0][0])
+}
+
+/** Versión 6 → 7: incidencias en la tramitación (lista informativa por patrocinio; no sale en los documentos) */
+function migrarA7(db: Database): void {
+  const columnas = filas<{ name: string }>(db, 'PRAGMA table_info(patrocinios)').map((c) => c.name)
+  if (!columnas.includes('incidencias')) db.exec("ALTER TABLE patrocinios ADD COLUMN incidencias TEXT NOT NULL DEFAULT ''")
 }
 
 /** Versión 3 → 4: llaves de cifrado. Las contraseñas de la versión 3 no sirven para cifrar: hay que ponerlas de nuevo. */

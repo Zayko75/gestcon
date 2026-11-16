@@ -1,5 +1,6 @@
 import type { DatosPatrocinio, Estado, Patrocinio } from '../types'
 import { importeSinIva, numeroES, parseImporte } from './format'
+import { incidenciasDeTexto, textoDeIncidencias } from './incidencias'
 import { aplicacionPorDefecto, emailValido, letraCoherente, soportesEnumerados, unaLinea, variasLineas } from './textos'
 
 /** Estado del formulario: todo como texto, como lo escribe el usuario */
@@ -13,6 +14,8 @@ export interface Borrador {
   /** Texto en letra guardado: no se edita, se recalcula si deja de coincidir con el importe */
   importe_letra: string; importe_letra_sin_iva: string
   aplicacion: string; importe_reding: string; fecha_firma: string
+  /** Incidencias en la tramitación, tal como se guardan (JSON) */
+  incidencias: string
 }
 
 export function borradorVacio(ivaPct = 21): Borrador {
@@ -22,7 +25,7 @@ export function borradorVacio(ivaPct = 21): Borrador {
     anualidad: String(anio), evento: '', fecha_celebracion: '', fecha_inicio: '', fecha_fin: '',
     plazo_ejecucion: '', municipios: '', soportes_cedidos: '', soportes_propios: '', soportes_enumerados: '',
     num_contrato: '', importe_total: '', iva_pct: numeroES(ivaPct).replace(/,00$/, ''), importe_letra: '', importe_letra_sin_iva: '',
-    aplicacion: aplicacionPorDefecto(anio), importe_reding: '', fecha_firma: '',
+    aplicacion: aplicacionPorDefecto(anio), importe_reding: '', fecha_firma: '', incidencias: '',
   }
 }
 
@@ -37,7 +40,7 @@ export function aBorrador(p: Patrocinio): Borrador {
     num_contrato: p.num_contrato === null ? '' : String(p.num_contrato), importe_total: numeroES(p.importe_total),
     iva_pct: numeroES(p.iva_pct).replace(/,00$/, ''),
     importe_letra: p.importe_letra, importe_letra_sin_iva: p.importe_letra_sin_iva, aplicacion: p.aplicacion,
-    importe_reding: numeroES(p.importe_reding), fecha_firma: p.fecha_firma ?? '',
+    importe_reding: numeroES(p.importe_reding), fecha_firma: p.fecha_firma ?? '', incidencias: p.incidencias ?? '',
   }
 }
 
@@ -86,6 +89,7 @@ export function deBorrador(b: Borrador): { datos: DatosPatrocinio } | { error: s
       num_contrato: num, importe_total: total, iva_pct: iva,
       importe_letra: letras.total, importe_letra_sin_iva: letras.sinIva,
       aplicacion: unaLinea(b.aplicacion), importe_reding: reding, fecha_firma: b.fecha_firma || null,
+      incidencias: textoDeIncidencias(incidenciasDeTexto(b.incidencias)),
     },
   }
 }

@@ -127,7 +127,7 @@ export function FichaEntidad({ id }: { id: number }) {
       // Datos de la entidad al día (los de su último patrocinio)
       entidad: e.nombre || b.entidad, cif: e.cif || b.cif, representante_legal: e.representante_legal, dni_nie_representante: e.dni_nie_representante,
       telefono: e.telefono, email: e.email,
-      estado: 'preparacion', anualidad: String(objetivo), num_contrato: '', fecha_firma: '',
+      estado: 'preparacion', anualidad: String(objetivo), num_contrato: '', fecha_firma: '', incidencias: '',
       evento: antes ? b.evento.replace(new RegExp(`\\b${antes}\\b`, 'g'), String(objetivo)) : b.evento,
       fecha_inicio: '', fecha_fin: '', fecha_celebracion: '', plazo_ejecucion: '',
       aplicacion: /^\d{4}\//.test(b.aplicacion) && antes && b.aplicacion.startsWith(String(antes)) ? String(objetivo) + b.aplicacion.slice(4) : aplicacionPorDefecto(objetivo),

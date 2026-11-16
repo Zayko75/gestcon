@@ -48,6 +48,8 @@ CREATE TABLE patrocinios (
   aplicacion             TEXT NOT NULL DEFAULT '',   -- 0000/0000/0000/00000
   importe_reding         REAL NOT NULL DEFAULT 0 CHECK (importe_reding >= 0),
   fecha_firma            TEXT CHECK (fecha_firma IS NULL OR (fecha_firma GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]' AND date(fecha_firma) IS NOT NULL)),
+  -- Tramitación (solo informativo, no sale en los documentos)
+  incidencias            TEXT NOT NULL DEFAULT '',   -- JSON [{fecha, texto, subsanada}] (versión 7)
   -- Control
   creado                 TEXT NOT NULL DEFAULT (datetime('now')),
   modificado             TEXT NOT NULL DEFAULT (datetime('now')),
@@ -107,6 +109,6 @@ BEGIN
   UPDATE patrocinios SET modificado = datetime('now') WHERE id = NEW.id;
 END;
 
-INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','6'), ('tipo_iva','21');
-PRAGMA user_version = 6;
+INSERT INTO configuracion(clave,valor) VALUES ('version_esquema','7'), ('tipo_iva','21');
+PRAGMA user_version = 7;
 

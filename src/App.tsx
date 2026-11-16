@@ -39,6 +39,7 @@ function DialogoActualizacion() {
           <li>Estado del expediente por fases y tipo de IVA en cada patrocinio.</li>
         </>}
         {inf.desde < 5 && <li>Dos estados nuevos del expediente: <strong>Pendiente de factura</strong> y <strong>Pagado</strong>. Los eventos que ya terminaron y no están pagados se ven en <a className="font-semibold text-indigo underline" href="#/eventos" onClick={cerrarInforme}>Eventos</a>.</li>}
+        {inf.incidencias && <li>Nuevo apartado <strong>Incidencias en la tramitación</strong> en cada patrocinio, para anotar con fecha las deficiencias y marcarlas cuando se subsanen. Es solo informativo: no sale en los documentos.</li>}
         {inf.pagados !== undefined && inf.pagados > 0 && <li><strong>{inf.pagados} {inf.pagados === 1 ? 'patrocinio' : 'patrocinios'}</strong> de años anteriores a 2026 {inf.pagados === 1 ? 'ha pasado' : 'han pasado'} al estado <strong>Pagado</strong>.</li>}
         {inf.usuarios && <>
           <li>Los datos están <strong>protegidos</strong>: se entra con usuario y contraseña y el archivo queda cifrado, así que nadie puede leerlo sin una cuenta de GESTCON.</li>
