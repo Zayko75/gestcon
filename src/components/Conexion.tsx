@@ -4,6 +4,7 @@ import { fechaHoraES } from '../lib/format'
 import { soportado } from '../lib/fs'
 import { useStore, type PasoCarga } from '../lib/store'
 import { Marca } from './Cabecera'
+import { Corredor } from './Corredor'
 
 function IconoDrive({ blanco = false }: { blanco?: boolean }) {
   const svg = (
@@ -114,11 +115,15 @@ function BloqueDrive() {
 }
 
 /** Marco de las pantallas de conexión y acceso: panel con la marca a la izquierda y el contenido a la derecha */
-export function MarcoConexion({ children }: { children: React.ReactNode }) {
+export function MarcoConexion({ children, cargando = false }: { children: React.ReactNode; cargando?: boolean }) {
   return (
     <main className="min-h-full lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <aside className="relative flex flex-col justify-between gap-10 overflow-hidden bg-noche px-6 py-8 text-white sm:px-10 lg:min-h-full lg:px-12 lg:py-12">
-        <Marca claro grande />
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-6 lg:gap-x-8">
+          <Marca claro grande />
+          {/* Mientras se cargan los datos, un atleta corre en la cabecera */}
+          {cargando && <Corredor className="animate-fundido max-lg:w-[5rem]" />}
+        </div>
         <div className="relative max-lg:hidden">
           <p className="max-w-md font-display text-[2.9rem] font-semibold leading-[1.02] tracking-[-0.01em]">
             Cada patrocinio, con su expediente completo.
@@ -174,7 +179,7 @@ export function PantallaConexion() {
   const local = soportado()
 
   return (
-    <MarcoConexion>
+    <MarcoConexion cargando={fase === 'cargando'}>
           {fase === 'cargando' ? (
             <PasosCarga puente={dirRaiz ? dirRaiz.tipo !== 'local' : hayPuente} paso={pasoCarga} />
           ) : fase === 'sin-bd' ? (
