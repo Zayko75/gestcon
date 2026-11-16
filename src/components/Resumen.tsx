@@ -78,12 +78,22 @@ export function Resumen() {
   const admin = puede('administrar')
   const aviso = useAviso()
   const anioActual = new Date().getFullYear()
+  // Años que se ofrecen: los que tienen patrocinios o crédito, el actual y el siguiente. Con las flechas se puede
+  // ir a cualquier otro: la aplicación sirve para todas las anualidades, sin límite.
   const anios = useMemo(() => {
     const s = new Set(registros.map((r) => r.anualidad).filter((a): a is number => a !== null))
+    for (const k of Object.keys(config)) if (/^credito:\d{4}\//.test(k)) s.add(Number(k.slice(8, 12)))
     s.add(anioActual)
+    s.add(anioActual + 1)
     return [...s].sort((a, b) => b - a)
-  }, [registros, anioActual])
+  }, [registros, config, anioActual])
   const [anio, setAnio] = useState(() => (registros.some((r) => r.anualidad === anioActual) ? anioActual : anios.find((a) => registros.some((r) => r.anualidad === a)) ?? anioActual))
+  // Botones de año: los seis más recientes, y siempre el que se está viendo
+  const botones = useMemo(() => {
+    const b = anios.slice(0, 6)
+    if (!b.includes(anio)) { if (b.length >= 6) b.pop(); b.push(anio) }
+    return b.sort((x, y) => y - x)
+  }, [anios, anio])
   const [nuevaAplic, setNuevaAplic] = useState('')
 
   const delAnio = useMemo(() => registros.filter((r) => r.anualidad === anio), [registros, anio])
@@ -153,8 +163,16 @@ export function Resumen() {
             </>}
           </p>
         </div>
-        <div className="segmento" role="group" aria-label="Año">
-          {anios.slice(0, 6).map((a) => <button key={a} type="button" aria-pressed={anio === a} onClick={() => setAnio(a)}>{a}</button>)}
+        <div className="flex items-center gap-1.5">
+          <button type="button" className="btn-sec btn-sm !px-2" onClick={() => setAnio(anio - 1)} aria-label={`Ver ${anio - 1}`} title={`Ver ${anio - 1}`}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+          <div className="segmento flex-wrap" role="group" aria-label="Año">
+            {botones.map((a) => <button key={a} type="button" aria-pressed={anio === a} onClick={() => setAnio(a)}>{a}</button>)}
+          </div>
+          <button type="button" className="btn-sec btn-sm !px-2" onClick={() => setAnio(anio + 1)} aria-label={`Ver ${anio + 1}`} title={`Ver ${anio + 1}`}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
         </div>
       </div>
 

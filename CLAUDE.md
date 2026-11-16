@@ -57,6 +57,9 @@ Patrocinios/
 ```
 
 ## Reglas de negocio que no se pueden romper
+- Anualidades abiertas: la app se usa todos los años, así que ninguna pantalla puede limitar
+  los años a los que ya tienen datos (ver el selector de año del Resumen: años con datos o
+  crédito, el actual y el siguiente, y flechas para ir a cualquier otro).
 - Los documentos impresos NO cambian salvo corrección aprobada por Bienve.
 - CIF: se guarda exactamente como está escrito (sin normalizar ni validar). Las entidades
   se agrupan por CIF solo para comparar.

@@ -131,7 +131,7 @@ Patrocinios/
 
 **Entidades.** Lista de entidades con su número de patrocinios, el último año y el importe total. En la ficha de una entidad se ven sus patrocinios agrupados por año, con lo que suman con y sin IVA. **Renovar para…** crea un patrocinio nuevo copiando el último (entidad, evento, municipios, soportes e importe), en estado «En preparación» y sin nº de contrato, fechas ni fecha de firma. Desde la ficha de un patrocinio, *Ver sus patrocinios* lleva a la de su entidad.
 
-**Resumen.** Elige el año arriba a la derecha.
+**Resumen.** Elige el año arriba a la derecha: se ofrecen los años con patrocinios o con crédito, el actual y el siguiente, y con las flechas ‹ › se va a cualquier otro año, sin límite (también a anualidades futuras sin patrocinios todavía, por ejemplo para anotar su crédito).
 - *Crédito por aplicación presupuestaria*: escribe el crédito de cada aplicación y verás lo comprometido (en firme y en curso), lo que queda y si se supera. El crédito se guarda en `datos.sqlite`. Para preparar otro año, usa *Indicar el crédito de otra aplicación*.
 - *Por estado*, *Eventos por mes* y *Municipios con más patrocinios*. Pulsando un estado se abre el listado filtrado.
 - *Límite del contrato menor*: 15.000 € sin IVA por defecto (se puede cambiar) y las entidades que lo superan sumando sus patrocinios del año.
