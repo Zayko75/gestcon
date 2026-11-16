@@ -4,7 +4,8 @@ import { eur } from '../lib/format'
 import { useStore } from '../lib/store'
 import type { Estado, Patrocinio } from '../types'
 import { Fecha } from './Pendientes'
-import { Dorsal, ESTADOS, EstadoChip, TONO_ESTADO, textoEstado } from './ui'
+import { incidenciasPendientes } from '../lib/incidencias'
+import { Dorsal, ESTADOS, EstadoChip, FranjaIncidencias, SenalIncidencias, TONO_ESTADO, textoEstado } from './ui'
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
@@ -53,12 +54,17 @@ function Recorrido({ r, hoy }: { r: Patrocinio; hoy: string }) {
 
 function FilaEnCurso({ r, hoy }: { r: Patrocinio; hoy: string }) {
   const m = municipios(r)
+  const inc = incidenciasPendientes(r.incidencias)
   return (
     <li>
-      <a href={`#/registro/${r.id}`} className="group flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-4 transition-colors hover:bg-indigo-claro/45 sm:flex-nowrap sm:px-5">
+      <a href={`#/registro/${r.id}`} className={`group relative flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-4 transition-colors hover:bg-indigo-claro/45 sm:flex-nowrap sm:px-5 ${inc ? 'bg-error/[.04]' : ''}`}>
+        <FranjaIncidencias n={inc} />
         <Fecha iso={r.fecha_inicio} />
         <span className="min-w-0 flex-1 basis-48">
-          <span className="block font-semibold leading-snug text-tinta group-hover:text-indigo">{r.entidad || '(sin entidad)'}</span>
+          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="font-semibold leading-snug text-tinta group-hover:text-indigo">{r.entidad || '(sin entidad)'}</span>
+            <SenalIncidencias n={inc} />
+          </span>
           <span className="mt-0.5 block text-[0.88rem] leading-snug text-tinta/70">{r.evento || 'Evento sin nombre'}</span>
           <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <EstadoChip estado={r.estado} />
@@ -85,12 +91,17 @@ function Espera({ dias }: { dias: number }) {
 function FilaSinPagar({ r, hoy }: { r: Patrocinio; hoy: string }) {
   const fin = finEvento(r)!
   const dias = diasEntre(fin, hoy)
+  const inc = incidenciasPendientes(r.incidencias)
   return (
     <li>
-      <a href={`#/registro/${r.id}`} className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-indigo-claro/45 sm:px-5">
+      <a href={`#/registro/${r.id}`} className={`group relative flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-indigo-claro/45 sm:px-5 ${inc ? 'bg-error/[.04]' : ''}`}>
+        <FranjaIncidencias n={inc} />
         <Espera dias={dias} />
         <span className="min-w-0 flex-1">
-          <span className="block font-semibold leading-snug text-tinta group-hover:text-indigo">{r.entidad || '(sin entidad)'}</span>
+          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="font-semibold leading-snug text-tinta group-hover:text-indigo">{r.entidad || '(sin entidad)'}</span>
+            <SenalIncidencias n={inc} />
+          </span>
           <span className="mt-0.5 block truncate text-[0.86rem] text-tinta/65" title={r.evento}>{r.evento || 'Evento sin nombre'}</span>
           <span className="mt-1 block text-[0.84rem] text-tinta/55">Terminó {elDia(fin)}{deIso(fin).getFullYear() !== deIso(hoy).getFullYear() ? ` de ${deIso(fin).getFullYear()}` : ''}</span>
           <span className="mt-1.5 flex items-center gap-3 sm:hidden">

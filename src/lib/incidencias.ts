@@ -51,6 +51,10 @@ export function textoDeIncidencias(lista: Incidencia[]): string {
   return limpias.length ? JSON.stringify(limpias) : ''
 }
 
+/** Cuántas incidencias siguen sin subsanar */
+export const incidenciasPendientes = (texto: string | null | undefined): number =>
+  incidenciasDeTexto(texto).filter((x) => !x.subsanada).length
+
 /** «Sin incidencias», «1 pendiente de 3», «Todas subsanadas (2)» */
 export function resumenIncidencias(texto: string | null | undefined): string {
   const lista = incidenciasDeTexto(texto)

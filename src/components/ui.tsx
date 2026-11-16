@@ -36,6 +36,31 @@ export function AvisosProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// ---------- Incidencias sin subsanar ----------
+/**
+ * Señal de incidencias sin subsanar (Pendientes y Eventos): una banderita que ondea dentro de una
+ * etiqueta roja con una onda que se expande. No cesa hasta que se subsanan todas (decisión de Bienve, 16/11/2026).
+ * Con «reducir movimiento» queda quieta, pero se sigue viendo.
+ */
+export function SenalIncidencias({ n }: { n: number }) {
+  if (n <= 0) return null
+  const texto = n === 1 ? '1 incidencia' : `${n} incidencias`
+  return (
+    <span className="relative inline-flex shrink-0" title={`${texto} sin subsanar en la tramitación`}>
+      <span aria-hidden="true" className="absolute inset-0 animate-onda rounded-full bg-error" />
+      <span className="relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-error py-1 pl-2 pr-2.5 text-[0.78rem] font-bold leading-none text-white shadow-[0_2px_8px_-2px_rgba(180,50,43,.6)]">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+          className="origin-[20%_90%] animate-ondear"><path d="M5 21V4" /><path d="M5 4h12l-2 4 2 4H5" fill="currentColor" /></svg>
+        {texto}<span className="sr-only"> sin subsanar</span>
+      </span>
+    </span>
+  )
+}
+
+/** Franja roja que late en el borde izquierdo de la fila de un patrocinio con incidencias sin subsanar */
+export const FranjaIncidencias = ({ n }: { n: number }) =>
+  n > 0 ? <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 animate-latido bg-error" /> : null
+
 // ---------- Indicador de trabajo ----------
 /** Pequeño círculo que gira dentro de un botón mientras dura su acción (generar, crear copia…) */
 export function Girando() {

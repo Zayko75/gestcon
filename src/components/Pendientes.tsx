@@ -3,7 +3,8 @@ import { diasEntre, hoyISO, pendientes } from '../lib/control'
 import { eur } from '../lib/format'
 import { useStore } from '../lib/store'
 import type { Patrocinio } from '../types'
-import { Dorsal, EstadoChip } from './ui'
+import { incidenciasPendientes } from '../lib/incidencias'
+import { Dorsal, EstadoChip, FranjaIncidencias, SenalIncidencias } from './ui'
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -31,12 +32,17 @@ export function cuando(iso: string | null, hoy: string, pasado = 'hace'): string
 }
 
 function Fila({ r, nota, urgente = false }: { r: Patrocinio; nota: string; urgente?: boolean }) {
+  const inc = incidenciasPendientes(r.incidencias)
   return (
     <li>
-      <a href={`#/registro/${r.id}`} className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-indigo-claro/45 sm:px-5">
+      <a href={`#/registro/${r.id}`} className={`group relative flex items-center gap-4 px-4 py-3 transition-colors hover:bg-indigo-claro/45 sm:px-5 ${inc ? 'bg-error/[.04]' : ''}`}>
+        <FranjaIncidencias n={inc} />
         <Fecha iso={r.fecha_inicio} />
         <span className="min-w-0 flex-1">
-          <span className="block font-semibold leading-snug text-tinta group-hover:text-indigo">{r.entidad || '(sin entidad)'}</span>
+          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="font-semibold leading-snug text-tinta group-hover:text-indigo">{r.entidad || '(sin entidad)'}</span>
+            <SenalIncidencias n={inc} />
+          </span>
           <span className="mt-0.5 block truncate text-[0.86rem] text-tinta/60" title={r.evento}>{r.evento}</span>
           <span className={`mt-1 block text-[0.84rem] font-medium ${urgente ? 'text-aviso' : 'text-tinta/60'}`}>{nota}</span>
         </span>

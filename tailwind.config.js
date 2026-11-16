@@ -34,6 +34,10 @@ export default {
         subir: { from: { transform: 'scaleY(0)' }, to: { transform: 'scaleY(1)' } },
         // Día actual de un evento en curso: un pulso al terminar de rellenarse
         pulso: { '0%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.35)' } },
+        // Incidencias sin subsanar (Pendientes y Eventos): señal continua, hasta que se subsanen
+        latido: { '0%, 100%': { opacity: '1' }, '50%': { opacity: '.3' } },
+        onda: { '0%': { transform: 'scale(1)', opacity: '.55' }, '80%, 100%': { transform: 'scale(1.9, 2.4)', opacity: '0' } },
+        ondear: { '0%, 100%': { transform: 'rotate(-14deg)' }, '50%': { transform: 'rotate(12deg)' } },
       },
       animation: {
         marca: 'marca 320ms cubic-bezier(.3,.7,.4,1) both',
@@ -45,6 +49,9 @@ export default {
         crecer: 'crecer 480ms cubic-bezier(.2,.8,.3,1) both',
         subir: 'subir 420ms cubic-bezier(.2,.8,.3,1) both',
         pulso: 'pulso 360ms ease-in-out both',
+        latido: 'latido 1.4s ease-in-out infinite',
+        onda: 'onda 1.6s cubic-bezier(.2,.6,.4,1) infinite',
+        ondear: 'ondear .8s ease-in-out infinite',
       },
     },
   },
