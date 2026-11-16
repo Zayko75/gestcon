@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { fechaHoraES, tamanoLegible } from '../lib/format'
 import { useStore } from '../lib/store'
 import type { Copia } from '../types'
-import { Dialogo, Girando, useAviso } from './ui'
+import { Dialogo, useAviso } from './ui'
+import { PantallaEspera, Pelotita } from './PelotaBotando'
 
 const MOTIVOS: Record<string, string> = {
   '': 'Automática del día',
@@ -18,6 +19,7 @@ export function Copias() {
   const [copias, setCopias] = useState<Copia[] | null>(null)
   const [aRestaurar, setARestaurar] = useState<Copia | null>(null)
   const [ocupado, setOcupado] = useState(false)
+  const [restaurando, setRestaurando] = useState(false)
 
   const cargar = useCallback(() => listarCopias().then(setCopias), [listarCopias])
   useEffect(() => { void cargar() }, [cargar])
@@ -39,11 +41,14 @@ export function Copias() {
     if (!aRestaurar) return
     const c = aRestaurar
     setARestaurar(null)
+    setRestaurando(true)
     try {
       await restaurar(c.nombre)
       aviso(`Datos restaurados desde la copia del ${fechaHoraES(c.fecha)}.`)
     } catch (e) {
       aviso('No se pudo restaurar: ' + (e instanceof Error ? e.message : String(e)), 'error')
+    } finally {
+      setRestaurando(false)
     }
   }
 
@@ -56,12 +61,12 @@ export function Copias() {
             Se guarda una sola copia de los datos en la carpeta «backups»: cada copia nueva sustituye a la anterior. Se hace sola la primera vez que se abre la aplicación cada día, y también antes de eliminar un patrocinio o de restaurar.
           </p>
         </div>
-        <button className="btn-primario" onClick={crear} disabled={ocupado}>{ocupado ? <><Girando />Creando copia…</> : 'Crear copia ahora'}</button>
+        <button className="btn-primario" onClick={crear} disabled={ocupado}>{ocupado ? <><Pelotita />Creando copia…</> : 'Crear copia ahora'}</button>
       </div>
 
       <div className="mt-8 overflow-hidden rounded-xl border border-linea bg-white">
         {copias === null ? (
-          <p className="p-6 text-tinta/65">Leyendo la carpeta…</p>
+          <p className="flex items-center gap-2 p-6 text-tinta/65"><Pelotita />Leyendo la carpeta…</p>
         ) : copias.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <p className="font-display text-2xl font-semibold">Aún no hay copias</p>
@@ -85,6 +90,7 @@ export function Copias() {
         )}
       </div>
 
+      {restaurando && <PantallaEspera titulo="Restaurando los datos…" detalle="Primero se guarda una copia de los datos actuales." />}
       {aRestaurar && (
         <Dialogo titulo="¿Restaurar esta copia?" onCerrar={() => setARestaurar(null)}
           acciones={<>

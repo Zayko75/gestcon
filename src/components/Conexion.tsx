@@ -4,7 +4,7 @@ import { fechaHoraES } from '../lib/format'
 import { soportado } from '../lib/fs'
 import { useStore, type PasoCarga } from '../lib/store'
 import { Marca } from './Cabecera'
-import { PelotaBotando } from './PelotaBotando'
+import { PelotaBotando, Pelotita } from './PelotaBotando'
 
 function IconoDrive({ blanco = false }: { blanco?: boolean }) {
   const svg = (
@@ -73,7 +73,7 @@ function BloqueDrive() {
       </label>
       {error && <p role="alert" className="rounded-lg border border-error/30 bg-error/[.06] px-3 py-2.5 text-[0.9rem] text-error">{error}</p>}
       <button className="btn-primario w-full sm:w-auto" disabled={!nombre.trim() || buscando} onClick={buscar}>
-        <IconoDrive blanco /> {buscando ? 'Conectando…' : 'Conectar con Google Drive'}
+        {buscando ? <><Pelotita />Conectando…</> : <><IconoDrive blanco /> Conectar con Google Drive</>}
       </button>
 
       <details className="rounded-lg border border-linea bg-white px-3.5 py-2.5 text-[0.88rem] text-tinta/75">
@@ -162,7 +162,7 @@ function PasosCarga({ puente, paso }: { puente: boolean; paso: PasoCarga }) {
               <span aria-hidden="true" key={hecho ? 'hecho' : 'falta'} className={`grid size-6 shrink-0 place-items-center rounded-full border-2 transition-colors duration-200 ${hecho ? 'animate-marca border-ok bg-ok text-white' : enCurso ? 'border-indigo' : 'border-linea'}`}>
                 {hecho
                   ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
-                  : enCurso ? <span className="size-2.5 animate-pulse rounded-full bg-indigo" /> : null}
+                  : enCurso ? <span className="text-[0.85rem]"><Pelotita /></span> : null}
               </span>
               {p.texto}
               <span className="sr-only">{hecho ? ' (hecho)' : enCurso ? ' (en curso)' : ''}</span>

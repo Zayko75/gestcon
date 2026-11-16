@@ -136,8 +136,7 @@ Pautas acordadas con Bienve (noviembre 2026). Reutiliza lo que ya existe antes d
   momento al abrir una pantalla (las barras del Resumen, las primeras filas del listado).
 - Nunca al escribir, filtrar o buscar: lo que se repite a cada momento no se anima.
 - Nada en bucle, salvo los indicadores de trabajo mientras dura la acción
-  (`animate-pulse` del guardado, `Girando` en los botones, la pelota `PelotaBotando` que bota
-  sobre «Abriendo los datos…» mientras se cargan) y la **única excepción** pedida por
+  (la pelota de baloncesto, ver «Esperas» abajo) y la **única excepción** pedida por
   Bienve (16/11/2026): la señal de incidencias sin subsanar en Pendientes y Eventos
   (`SenalIncidencias` y `FranjaIncidencias` en `ui.tsx`), que no cesa hasta que se subsanan.
   No añadir otras animaciones continuas sin consultarlo.
@@ -156,11 +155,20 @@ Pautas acordadas con Bienve (noviembre 2026). Reutiliza lo que ya existe antes d
   (confirmar, ✓), `entrar` (avisos), `aparecer` y `fundido` (diálogos), `desplegar` (paneles),
   `fila` (filas del listado), `crecer` / `subir` (barras), `pulso` (día actual de un evento),
   `latido` / `onda` / `ondear` (señal continua de incidencias sin subsanar), `cruzar` /
-  `botar` / `aplastar` (pelota de baloncesto de la carga, `src/components/PelotaBotando.tsx`).
+  `botar` / `aplastar` / `botecito` (pelota de baloncesto de las esperas, `src/components/PelotaBotando.tsx`).
   Para algo nuevo, añádelo ahí con nombre en español, no con estilos sueltos.
 - Botones: la respuesta al pulsar está en `.btn` (`src/index.css`); los botones nuevos usan
-  las clases `.btn-*` y la heredan. Acciones largas: `<Girando />` + texto en gerundio
-  («Generando…»), con el botón desactivado.
+  las clases `.btn-*` y la heredan.
+
+**Esperas** (decisión de Bienve, 16/11/2026): siempre que haya que esperar se ve la pelota de
+baloncesto botando (`src/components/PelotaBotando.tsx`), nunca otro indicador:
+- Dentro de un botón o de un texto de estado: `<Pelotita />` + texto en gerundio
+  («Generando…», «Guardando…»), con el botón desactivado (`.btn` no lo atenúa si lleva la pelotita).
+- Esperas largas que tapan la pantalla (crear, duplicar, eliminar, renovar, restaurar):
+  `<PantallaEspera titulo="Restaurando los datos…" />`.
+- Sobre un título mientras algo se prepara (carga de datos, vista previa): `<PelotaBotando />`
+  dentro de un contenedor `relative w-fit` con el título.
+- Cualquier espera nueva debe usar una de estas tres.
 - `prefers-reduced-motion`: la regla global de `src/index.css` desactiva todas las animaciones
   y transiciones; no hace falta repetirla en cada componente. El desplazamiento suave por
   código debe comprobarlo (como el índice de la ficha).

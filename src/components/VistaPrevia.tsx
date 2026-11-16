@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { renderAsync } from 'docx-preview'
 import { ajustarMaquetacion, paginar } from '../lib/maquetacion'
+import { PelotaBotando } from './PelotaBotando'
 
 export function VistaPrevia({ nombre, bytes, onCerrar }: { nombre: string; bytes: Uint8Array; onCerrar: () => void }) {
   const cont = useRef<HTMLDivElement>(null)
@@ -60,7 +61,13 @@ export function VistaPrevia({ nombre, bytes, onCerrar }: { nombre: string; bytes
         Para obtener el PDF: pulsa «Imprimir o guardar como PDF» y en el destino elige «Guardar como PDF». La maquetación exacta es la del archivo Word guardado en la carpeta documentos.
       </p>
       {error && <p role="alert" className="no-imprimir mx-auto mt-4 max-w-3xl rounded-lg border border-error/30 bg-white p-3 text-[0.9rem] text-error">{error}</p>}
-      <div ref={cont} />
+      {!listo && !error && (
+        <div role="status" className="no-imprimir pointer-events-none fixed inset-x-0 top-[38%] z-10 grid place-items-center px-6">
+          <div className="relative w-fit"><PelotaBotando /><p className="titulo">Preparando la vista previa…</p></div>
+        </div>
+      )}
+      {/* El documento se maqueta oculto (pero con su tamaño real, para medir bien) y se muestra al terminar */}
+      <div ref={cont} className={listo ? '' : 'invisible'} />
     </div>,
     document.body,
   )

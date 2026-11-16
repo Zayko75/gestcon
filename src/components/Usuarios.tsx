@@ -3,6 +3,7 @@ import { LONGITUD_MINIMA, ROLES, textoRol } from '../lib/acceso'
 import { useStore, type DatosUsuarioForm } from '../lib/store'
 import type { Rol, Usuario } from '../types'
 import { Dialogo, useAviso } from './ui'
+import { Pelotita } from './PelotaBotando'
 
 const COLOR_ROL: Record<Rol, string> = {
   consulta: 'bg-tinta/[.07] text-tinta/75',
@@ -106,7 +107,7 @@ function Editor({ u, onCerrar }: { u: Usuario | null; onCerrar: () => void }) {
         <div className="mt-6 flex flex-wrap items-center gap-2">
           {u && !esYo && <button type="button" className="btn-peligro mr-auto" onClick={() => setConfirmarBorrar(true)} disabled={ocupado}>Eliminar</button>}
           <button type="button" className="btn-sec ml-auto" onClick={onCerrar}>Cancelar</button>
-          <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Guardando…' : u ? 'Guardar' : 'Dar de alta'}</button>
+          <button className="btn-primario" disabled={ocupado}>{ocupado ? <><Pelotita />Guardando…</> : u ? 'Guardar' : 'Dar de alta'}</button>
         </div>
       </form>
       {confirmarBorrar && u && (

@@ -13,6 +13,7 @@ import { EntradaMascara } from './EntradaMascara'
 import { ListaIncidencias } from './ListaIncidencias'
 import { ListaSoportes, sugerenciasDeSoportes } from './ListaSoportes'
 import { PanelDocumentos } from './PanelDocumentos'
+import { PantallaEspera, Pelotita } from './PelotaBotando'
 import { Dialogo, Dorsal, RecorridoEstado, useAviso } from './ui'
 
 function Campo({ id, etiqueta, ayuda, aviso, accion, children, className = '' }: { id: string; etiqueta: string; ayuda?: ReactNode; aviso?: ReactNode; accion?: ReactNode; children: ReactNode; className?: string }) {
@@ -99,6 +100,7 @@ export function Ficha({ id }: { id: number | null }) {
   const [b, setB] = useState<Borrador>(() => (guardado ? aBorrador(guardado) : borradorVacio(ivaPct)))
   const [errorGuardar, setErrorGuardar] = useState('')
   const [confirmarBorrar, setConfirmarBorrar] = useState(false)
+  const [esperando, setEsperando] = useState<string | null>(null) // texto de la espera en curso (crear, duplicar, eliminar)
   const ultimo = useRef(JSON.stringify(b)) // última versión guardada
   /** La ficha tal como está guardada: lo que se guarda son solo los campos que cambian respecto a ella */
   const baseB = useRef<Borrador>(b)
@@ -352,27 +354,36 @@ export function Ficha({ id }: { id: number | null }) {
 
   const crearNuevo = async () => {
     if ('error' in parsed) { setErrorGuardar(parsed.error); return }
+    setEsperando('Creando el patrocinio…')
     try {
       const nuevoId = await crear(parsed.datos)
       aviso('Patrocinio creado.')
       location.hash = `#/registro/${nuevoId}`
     } catch (e) {
       setErrorGuardar('No se pudo guardar: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setEsperando(null)
     }
   }
 
   const duplicar = async () => {
-    if (!guardado || 'error' in parsed) return
-    if (!(await guardarAhora())) return
-    const copia = { ...parsed.datos, estado: 'preparacion' as Estado, num_contrato: null, fecha_firma: null, incidencias: '' }
-    const nuevoId = await crear(copia)
-    aviso('Se ha creado una copia sin nº de contrato ni fecha de firma. Ya puedes editarla.')
-    location.hash = `#/registro/${nuevoId}`
+    setEsperando('Duplicando el patrocinio…')
+    try {
+      if (!guardado || 'error' in parsed) return
+      if (!(await guardarAhora())) return
+      const copia = { ...parsed.datos, estado: 'preparacion' as Estado, num_contrato: null, fecha_firma: null, incidencias: '' }
+      const nuevoId = await crear(copia)
+      aviso('Se ha creado una copia sin nº de contrato ni fecha de firma. Ya puedes editarla.')
+      location.hash = `#/registro/${nuevoId}`
+    } finally {
+      setEsperando(null)
+    }
   }
 
   const borrar = async () => {
     if (!guardado) return
     setConfirmarBorrar(false)
+    setEsperando('Eliminando el patrocinio…')
     try {
       await copiaAhora('antes-de-eliminar')
       await eliminar(guardado.id)
@@ -380,6 +391,8 @@ export function Ficha({ id }: { id: number | null }) {
       location.hash = '#/'
     } catch (e) {
       aviso('No se pudo eliminar: ' + (e instanceof Error ? e.message : String(e)), 'error')
+    } finally {
+      setEsperando(null)
     }
   }
 
@@ -594,6 +607,7 @@ export function Ficha({ id }: { id: number | null }) {
         </div>
       </div>
 
+      {esperando && <PantallaEspera titulo={esperando} />}
       {confirmarBorrar && (
         <Dialogo titulo="¿Eliminar este patrocinio?" onCerrar={() => setConfirmarBorrar(false)}
           acciones={<>
@@ -657,7 +671,7 @@ function BarraDeshacer({ id, pendiente, invalido, onDeshacer, onRehacer, onDesha
           </button>
         </span>
         <span className="min-w-0 text-tinta/60" aria-live="polite">
-          {pendiente ? (invalido ? 'Hay un dato sin guardar: Deshacer lo quita.' : 'Guardando lo que has escrito…')
+          {pendiente ? (invalido ? 'Hay un dato sin guardar: Deshacer lo quita.' : <span className="inline-flex items-center gap-1.5"><Pelotita />Guardando lo que has escrito…</span>)
             : ultimoPaso ? <>Último cambio: <strong className="font-semibold text-tinta/80">{resumenPaso(ultimoPaso)}</strong></>
               : proximoRehacer ? <>Deshecho: <strong className="font-semibold text-tinta/80">{resumenPaso(proximoRehacer)}</strong></> : null}
         </span>

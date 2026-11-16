@@ -4,6 +4,7 @@ import { pendientes, terminadosSinPagar } from '../lib/control'
 import { horaCorta } from '../lib/format'
 import { useStore } from '../lib/store'
 import { Dialogo, useAviso } from './ui'
+import { Pelotita } from './PelotaBotando'
 import logo from '../assets/logo.png'
 
 /** Marca de la aplicación: el logo (C con balón y líneas de velocidad) y el nombre. «grande»: en la pantalla de entrada */
@@ -75,7 +76,9 @@ export function Cabecera({ ruta }: { ruta: string }) {
         ? <span key={guardado.hora?.getTime()} aria-hidden="true" className="grid size-4 shrink-0 animate-marca place-items-center rounded-full bg-[#6fd3a2] text-noche">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
           </span>
-        : <span aria-hidden="true" className={`mx-1 h-2 w-2 shrink-0 rounded-full ${guardado.estado === 'error' ? 'bg-[#ff8a80]' : guardado.estado === 'guardando' ? 'animate-pulse bg-[#ffc266]' : 'bg-[#6fd3a2]'}`} />}
+        : guardado.estado === 'guardando'
+          ? <span className="inline-flex w-4 justify-center"><Pelotita /></span>
+          : <span aria-hidden="true" className={`mx-1 h-2 w-2 shrink-0 rounded-full ${guardado.estado === 'error' ? 'bg-[#ff8a80]' : 'bg-[#6fd3a2]'}`} />}
       <span className={guardado.estado === 'error' ? 'font-medium text-[#ffb3ab]' : 'text-white/80'}>
         {guardado.estado === 'guardando' && 'Guardando…'}
         {guardado.estado === 'guardado' && (guardado.hora ? `Guardado a las ${horaCorta(guardado.hora)}` : 'Datos al día')}

@@ -5,7 +5,8 @@ import { fechaHoraES } from '../lib/format'
 import * as fs from '../lib/fs'
 import { useStore } from '../lib/store'
 import { VistaPrevia } from './VistaPrevia'
-import { Girando, useAviso } from './ui'
+import { useAviso } from './ui'
+import { Pelotita } from './PelotaBotando'
 
 interface Estado {
   etiquetas: string[] | null // null = falta la plantilla
@@ -24,6 +25,7 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
   const [estados, setEstados] = useState<Record<string, Estado>>({})
   const [trabajando, setTrabajando] = useState<string | null>(null)
   const [generandoTodos, setGenerandoTodos] = useState(false)
+  const [abriendo, setAbriendo] = useState<string | null>(null) // documento guardado que se está leyendo
   const [vista, setVista] = useState<{ nombre: string; bytes: Uint8Array } | null>(null)
 
   // Lee qué etiquetas tiene cada plantilla y qué documentos ya existen
@@ -89,11 +91,14 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
   const verExistente = async (def: DefDocumento) => {
     if (!dirRaiz || !registro) return
     const nombre = estados[def.id]?.archivo ?? nombreDocumento(registro, def)
+    setAbriendo(def.id)
     try {
       const { datos } = await fs.leerBytes(await fs.subcarpeta(dirRaiz, 'documentos', false), nombre)
       setVista({ nombre, bytes: datos })
     } catch {
       aviso('No se encuentra el documento en la carpeta «documentos».', 'error')
+    } finally {
+      setAbriendo(null)
     }
   }
 
@@ -122,7 +127,7 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
         </div>
         {genera && (
           <button className="btn-sec btn-sm shrink-0" disabled={!listoParaGenerar || trabajando !== null} onClick={generarTodos}>
-            {generandoTodos ? <><Girando />Generando…</> : 'Generar todos'}
+            {generandoTodos ? <><Pelotita />Generando…</> : 'Generar todos'}
           </button>
         )}
       </div>
@@ -156,7 +161,7 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
                     <button className="btn-primario btn-sm shrink-0"
                       disabled={!listoParaGenerar || trabajando !== null || falta}
                       onClick={() => generar(def)}>
-                      {ocupado ? <><Girando />Generando…</> : 'Generar'}
+                      {ocupado ? <><Pelotita />Generando…</> : 'Generar'}
                     </button>
                   )}
                 </div>
@@ -169,10 +174,10 @@ export function PanelDocumentos({ registro, listoParaGenerar, antesDeGenerar }: 
                 )}
                 {est?.existe && (
                   <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1.5">
-                    <button className="btn-sec btn-sm" onClick={() => verExistente(def)} title="Ver el documento guardado e imprimirlo o guardarlo como PDF">Ver / PDF</button>
+                    <button className="btn-sec btn-sm" onClick={() => verExistente(def)} disabled={abriendo !== null} title="Ver el documento guardado e imprimirlo o guardarlo como PDF">{abriendo === def.id ? <><Pelotita />Abriendo…</> : 'Ver / PDF'}</button>
                     {genera && (
                       <button className="btn-texto btn-sm" disabled={!listoParaGenerar || trabajando !== null} onClick={() => generar(def)}>
-                        {ocupado ? <><Girando />Generando…</> : 'Volver a generar'}
+                        {ocupado ? <><Pelotita />Generando…</> : 'Volver a generar'}
                       </button>
                     )}
                     <span className="basis-full text-[0.8rem] text-tinta/50">Generado el {fechaHoraES(est.existe)}</span>

@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { LONGITUD_MINIMA } from '../lib/acceso'
 import { useStore } from '../lib/store'
 import { MarcoConexion } from './Conexion'
+import { Pelotita } from './PelotaBotando'
 
 function Campo({ id, etiqueta, ayuda, children }: { id: string; etiqueta: string; ayuda?: string; children: ReactNode }) {
   return (
@@ -64,7 +65,7 @@ function Entrar() {
         <Campo id="r-nueva" etiqueta="Contraseña nueva" ayuda={AYUDA_CLAVE}><input id="r-nueva" type="password" className="campo" value={nueva} onChange={(e) => setNueva(e.target.value)} autoComplete="new-password" required /></Campo>
         <Campo id="r-repetir" etiqueta="Repite la contraseña nueva"><input id="r-repetir" type="password" className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value)} autoComplete="new-password" required /></Campo>
         <div className="flex flex-wrap items-center gap-3">
-          <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Comprobando…' : 'Cambiar contraseña y entrar'}</button>
+          <button className="btn-primario" disabled={ocupado}>{ocupado ? <><Pelotita />Comprobando…</> : 'Cambiar contraseña y entrar'}</button>
           <button type="button" className="btn-texto" onClick={() => { setModo('entrar'); setError('') }}>Volver</button>
         </div>
       </form>
@@ -81,7 +82,7 @@ function Entrar() {
       <Campo id="a-usuario" etiqueta="Usuario"><input id="a-usuario" className="campo" value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" autoFocus={!usuario} required /></Campo>
       <Campo id="a-clave" etiqueta="Contraseña"><input id="a-clave" type="password" className="campo" value={clave} onChange={(e) => setClave(e.target.value)} autoComplete="current-password" autoFocus={!!usuario} required /></Campo>
       <div className="flex flex-wrap items-center gap-3">
-        <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Comprobando…' : 'Entrar'}</button>
+        <button className="btn-primario" disabled={ocupado}>{ocupado ? <><Pelotita />Comprobando…</> : 'Entrar'}</button>
         <button type="button" className="btn-texto" onClick={() => { setModo('recuperar'); setError('') }}>¿Has olvidado la contraseña?</button>
       </div>
       <p className="border-t border-linea pt-4 text-[0.88rem] text-tinta/60">
@@ -118,7 +119,7 @@ function Proteger() {
       <Campo id="p-usuario" etiqueta="Usuario" ayuda="Con el que entrarás, por ejemplo «bienve»."><input id="p-usuario" className="campo" value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" autoFocus={!!nombre} required /></Campo>
       <Campo id="p-clave" etiqueta="Contraseña" ayuda={AYUDA_CLAVE}><input id="p-clave" type="password" className="campo" value={clave} onChange={(e) => setClave(e.target.value)} autoComplete="new-password" required /></Campo>
       <Campo id="p-repetir" etiqueta="Repite la contraseña"><input id="p-repetir" type="password" className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value)} autoComplete="new-password" required /></Campo>
-      <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Protegiendo los datos…' : hayDatos ? 'Proteger y entrar' : 'Crear administrador y entrar'}</button>
+      <button className="btn-primario" disabled={ocupado}>{ocupado ? <><Pelotita />Protegiendo los datos…</> : hayDatos ? 'Proteger y entrar' : 'Crear administrador y entrar'}</button>
     </form>
   )
 }
@@ -143,7 +144,7 @@ function CambiarClave() {
       <Campo id="c-nueva" etiqueta="Contraseña nueva" ayuda={AYUDA_CLAVE}><input id="c-nueva" type="password" className="campo" value={nueva} onChange={(e) => setNueva(e.target.value)} autoComplete="new-password" required /></Campo>
       <Campo id="c-repetir" etiqueta="Repite la contraseña nueva"><input id="c-repetir" type="password" className="campo" value={repetir} onChange={(e) => setRepetir(e.target.value)} autoComplete="new-password" required /></Campo>
       <div className="flex flex-wrap items-center gap-3">
-        <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Guardando…' : 'Guardar y entrar'}</button>
+        <button className="btn-primario" disabled={ocupado}>{ocupado ? <><Pelotita />Guardando…</> : 'Guardar y entrar'}</button>
         <button type="button" className="btn-texto" onClick={() => salir()}>Salir</button>
       </div>
     </form>
@@ -168,7 +169,7 @@ function Activar() {
         <input id="v-codigo" className="campo font-medium uppercase tracking-[0.08em]" value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" autoComplete="off" autoFocus required />
       </Campo>
       <div className="flex flex-wrap items-center gap-3">
-        <button className="btn-primario" disabled={ocupado}>{ocupado ? 'Activando…' : 'Activar y entrar'}</button>
+        <button className="btn-primario" disabled={ocupado}>{ocupado ? <><Pelotita />Activando…</> : 'Activar y entrar'}</button>
         <button type="button" className="btn-texto" onClick={() => salir()}>Salir</button>
       </div>
     </form>

@@ -7,6 +7,7 @@ import { aplicacionPorDefecto, claveCif } from '../lib/textos'
 import type { Patrocinio } from '../types'
 import { Fecha } from './Pendientes'
 import { Dialogo, Dorsal, EstadoChip, useAviso } from './ui'
+import { PantallaEspera } from './PelotaBotando'
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
@@ -117,28 +118,34 @@ export function FichaEntidad({ id }: { id: number }) {
   const ultimo = ps[0]
   const objetivo = ultimo ? anioRenovacion(ultimo) : null
 
+  const [renovando, setRenovando] = useState(false)
   const renovar = async () => {
-    setConfirmar(false)
-    if (!ultimo || objetivo === null) return
-    const b = aBorrador(ultimo)
-    const antes = ultimo.anualidad
-    const r = deBorrador({
-      ...b,
-      // Datos de la entidad al día (los de su último patrocinio)
-      entidad: e.nombre || b.entidad, cif: e.cif || b.cif, representante_legal: e.representante_legal, dni_nie_representante: e.dni_nie_representante,
-      telefono: e.telefono, email: e.email,
-      estado: 'preparacion', anualidad: String(objetivo), num_contrato: '', fecha_firma: '', incidencias: '',
-      evento: antes ? b.evento.replace(new RegExp(`\\b${antes}\\b`, 'g'), String(objetivo)) : b.evento,
-      fecha_inicio: '', fecha_fin: '', fecha_celebracion: '', plazo_ejecucion: '',
-      aplicacion: /^\d{4}\//.test(b.aplicacion) && antes && b.aplicacion.startsWith(String(antes)) ? String(objetivo) + b.aplicacion.slice(4) : aplicacionPorDefecto(objetivo),
-    })
-    if ('error' in r) { aviso(r.error, 'error'); return }
+    setRenovando(true)
     try {
-      const nuevo = await crear(r.datos)
-      aviso(`Patrocinio de ${objetivo} creado. Revisa las fechas, el importe y los soportes.`)
-      location.hash = `#/registro/${nuevo}`
-    } catch (x) {
-      aviso('No se pudo crear: ' + (x instanceof Error ? x.message : String(x)), 'error')
+      setConfirmar(false)
+      if (!ultimo || objetivo === null) return
+      const b = aBorrador(ultimo)
+      const antes = ultimo.anualidad
+      const r = deBorrador({
+        ...b,
+        // Datos de la entidad al día (los de su último patrocinio)
+        entidad: e.nombre || b.entidad, cif: e.cif || b.cif, representante_legal: e.representante_legal, dni_nie_representante: e.dni_nie_representante,
+        telefono: e.telefono, email: e.email,
+        estado: 'preparacion', anualidad: String(objetivo), num_contrato: '', fecha_firma: '', incidencias: '',
+        evento: antes ? b.evento.replace(new RegExp(`\\b${antes}\\b`, 'g'), String(objetivo)) : b.evento,
+        fecha_inicio: '', fecha_fin: '', fecha_celebracion: '', plazo_ejecucion: '',
+        aplicacion: /^\d{4}\//.test(b.aplicacion) && antes && b.aplicacion.startsWith(String(antes)) ? String(objetivo) + b.aplicacion.slice(4) : aplicacionPorDefecto(objetivo),
+      })
+      if ('error' in r) { aviso(r.error, 'error'); return }
+      try {
+        const nuevo = await crear(r.datos)
+        aviso(`Patrocinio de ${objetivo} creado. Revisa las fechas, el importe y los soportes.`)
+        location.hash = `#/registro/${nuevo}`
+      } catch (x) {
+        aviso('No se pudo crear: ' + (x instanceof Error ? x.message : String(x)), 'error')
+      }
+    } finally {
+      setRenovando(false)
     }
   }
 
@@ -206,6 +213,7 @@ export function FichaEntidad({ id }: { id: number }) {
         </aside>
       </div>
 
+      {renovando && <PantallaEspera titulo={`Creando el patrocinio de ${objetivo}…`} />}
       {confirmar && ultimo && (
         <Dialogo titulo={`Renovar para ${objetivo}`} onCerrar={() => setConfirmar(false)}
           acciones={<>

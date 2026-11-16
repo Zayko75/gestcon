@@ -42,6 +42,7 @@ export default {
         cruzar: { '0%': { transform: 'translateX(0)', opacity: '0' }, '6%, 94%': { opacity: '1' }, '100%': { transform: 'translateX(100%)', opacity: '0' } },
         botar: { '0%, 100%': { transform: 'translateY(-2.6rem)', animationTimingFunction: 'cubic-bezier(.5,0,.9,.5)' }, '50%': { transform: 'translateY(0)', animationTimingFunction: 'cubic-bezier(.1,.5,.5,1)' } },
         aplastar: { '0%, 42%, 58%, 100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.18, .78)' } },
+        botecito: { '0%, 100%': { transform: 'translateY(-0.45em)', animationTimingFunction: 'cubic-bezier(.5,0,.9,.5)' }, '50%': { transform: 'translateY(0)', animationTimingFunction: 'cubic-bezier(.1,.5,.5,1)' } },
       },
       animation: {
         marca: 'marca 320ms cubic-bezier(.3,.7,.4,1) both',
@@ -59,6 +60,7 @@ export default {
         cruzar: 'cruzar 2.8s linear infinite',
         botar: 'botar 700ms infinite',
         aplastar: 'aplastar 700ms linear infinite',
+        botecito: 'botecito 700ms infinite',
       },
     },
   },
