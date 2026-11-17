@@ -80,18 +80,43 @@ export class CarpetaPuente implements Carpeta {
   ponerIdentidad(id: Identidad | null) { this.sesion.id = id }
   get identidad(): Identidad | null { return this.sesion.id }
 
+  /**
+   * Una petición al puente. Apps Script a veces deja una petición colgada sin responder nunca (medido el 17/11/2026:
+   * 2 de cada 12), y al entrar se hacen unas 8 seguidas: sin límite de tiempo la aplicación se quedaba cargando para
+   * siempre. Cada intento tiene un tiempo límite (también para recibir la respuesta entera) y, si no responde o falla
+   * la red, se repite. Todas las operaciones se pueden repetir sin efectos dobles, salvo «activar», que no se repite.
+   */
   private async llamar<T>(op: string, extra: Record<string, unknown> = {}): Promise<T> {
     const cuerpo = JSON.stringify({ op, ruta: this.ruta, usuario: this.sesion.id?.usuario, credencial: this.sesion.id?.credencial, ...extra })
-    let r: Response
-    try {
-      // text/plain: sin petición previa de CORS, que Apps Script no admite
-      r = await fetch(this.url, { method: 'POST', body: cuerpo, headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow' })
-    } catch {
-      throw new Error('No se puede contactar con Google Drive. Comprueba la conexión a internet.')
+    const grande = op === 'leer' || op === 'escribir'
+    const limite = grande ? 20_000 : 8_000
+    const intentos = op === 'activar' ? 1 : 4
+    let texto: string | null = null
+    let estadoHttp = 0
+    for (let n = 1; n <= intentos && texto === null; n++) {
+      const corte = new AbortController()
+      const reloj = setTimeout(() => corte.abort(), limite)
+      try {
+        // text/plain: sin petición previa de CORS, que Apps Script no admite
+        const x = await fetch(this.url, { method: 'POST', body: cuerpo, headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow', signal: corte.signal })
+        // Errores pasajeros de Google (demasiadas peticiones, servidor ocupado): se reintenta
+        if ((x.status === 429 || x.status >= 500) && n < intentos) throw new Error(String(x.status))
+        estadoHttp = x.status
+        texto = await x.text()
+      } catch {
+        if (n === intentos) {
+          throw new Error(corte.signal.aborted
+            ? 'Google Drive no responde. Comprueba la conexión a internet y vuelve a intentarlo dentro de un momento.'
+            : 'No se puede contactar con Google Drive. Comprueba la conexión a internet.')
+        }
+        await new Promise((ok) => setTimeout(ok, 400 * n))
+      } finally {
+        clearTimeout(reloj)
+      }
     }
-    if (!r.ok) throw new Error(`Google Drive respondió con un error (${r.status}).`)
+    if (estadoHttp < 200 || estadoHttp >= 300) throw new Error(`Google Drive respondió con un error (${estadoHttp}).`)
     let j: any
-    try { j = await r.json() } catch { throw new Error('Respuesta inesperada de la conexión con Google Drive.') }
+    try { j = JSON.parse(texto ?? '') } catch { throw new Error('Respuesta inesperada de la conexión con Google Drive.') }
     if (j.error) {
       const m = String(j.error)
       if (m.startsWith('sin_activar')) throw new SinActivarError()
@@ -156,7 +181,12 @@ export class CarpetaPuente implements Carpeta {
   }
 
   async borrar(nombre: string) {
-    await this.llamar('borrar', { nombre })
+    try {
+      await this.llamar('borrar', { nombre })
+    } catch (e) {
+      // Si un intento anterior sí lo borró (y su respuesta se perdió), el archivo ya no está: es lo que se quería
+      if (!(e instanceof Error && e.message.startsWith('No existe'))) throw e
+    }
   }
 
   async listar(): Promise<InfoArchivo[]> {

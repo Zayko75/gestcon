@@ -13,7 +13,7 @@ import {
 } from './acceso'
 import * as cif from './cifrado'
 import { olvidarTodo as olvidarDeshacer } from './deshacer'
-import { CarpetaPuente, credencialAntigua, credencialPuente, huellaDe, SinActivarError, SinPermisoPuenteError, urlPuente, USUARIO_RECUPERACION, type Identidad } from './puente'
+import { CarpetaPuente, credencialAntigua, credencialPuente, huellaDe, SinActivarError, SinPermisoPuenteError, urlPuente, USUARIO_RECUPERACION, type EstadoPuente, type Identidad } from './puente'
 
 type Fase =
   | 'inicio' | 'cargando' | 'sin-bd' | 'error'
@@ -330,12 +330,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [fase, sincronizar, sesionCaducada])
 
   // ---------- Apertura de la carpeta e identidad ----------
-  const terminarApertura = useCallback(async (u: Usuario) => {
+  const terminarApertura = useCallback(async (u: Usuario, estadoSabido?: EstadoPuente) => {
     // Conexión directa con Drive: el usuario tiene que tener acceso en el puente
+    // (si se acaba de comprobar al entrar, no se vuelve a preguntar: cada consulta al puente tarda 1–2 s)
     const pu = handle.current instanceof CarpetaPuente ? handle.current : null
     let codigoNuevo = false
     if (pu) {
-      let estado = await pu.estado()
+      let estado = estadoSabido ?? await pu.estado()
       const admin = puedeRol(u.rol, 'administrar')
       if (estado === 'migrar' && admin) {
         // Versión 1 del puente (credencial común): pasa a credenciales por usuario
@@ -365,17 +366,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const h = handle.current!
     guardarSesion(h.nombre, u.id, claveDatos.current, pu?.identidad)
     if (u.cambiar_clave) { setFase('cambiar-clave'); return }
-    // Copia automática: una al día, la primera vez que la abre alguien que puede escribir
-    if (puedeRol(u.rol, 'editar')) {
-      try {
-        await copiaDiaria(await fs.subcarpeta(h, 'backups'), await serializar(db.current!))
-      } catch (e) {
-        console.warn('No se pudo crear la copia automática', e)
-      }
-    }
     refrescar()
     setGuardado({ estado: 'guardado' })
     setFase('listo')
+    // Copia automática: una al día, la primera vez que la abre alguien que puede escribir. Se hace ya dentro de la
+    // aplicación, sin hacer esperar al entrar (son varias consultas al puente).
+    if (puedeRol(u.rol, 'editar') && db.current) {
+      const bytes = serializar(db.current)
+      void (async () => {
+        try {
+          await copiaDiaria(await fs.subcarpeta(h, 'backups'), await bytes)
+        } catch (e) {
+          console.warn('No se pudo crear la copia automática', e)
+        }
+      })()
+    }
     // Tras activar o migrar el puente, el código de recuperación tiene que tener también acceso: se crea uno nuevo
     if (codigoNuevo) await guardarRecuperacionRef.current?.()
   }, [refrescar, serializar])
@@ -384,7 +389,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    * Con la clave de datos ya conocida: descifra el archivo, lo actualiza si es de una versión anterior y
    * entra con el usuario indicado. Devuelve false si ese usuario no existe o está desactivado.
    */
-  const abrirComo = useCallback(async (bytes: Uint8Array, marca: string, usuarioId: number): Promise<boolean> => {
+  const abrirComo = useCallback(async (bytes: Uint8Array, marca: string, usuarioId: number, estadoSabido?: EstadoPuente): Promise<boolean> => {
     const h = handle.current!
     const nueva = await abrirBytes(bytes)
     db.current?.close()
@@ -402,7 +407,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const yo = bd.listarUsuarios(nueva).find((u) => u.id === usuarioId)
     if (!yo || !yo.activo || !yo.usuario) return false
     refrescar()
-    await terminarApertura(yo)
+    await terminarApertura(yo, estadoSabido)
     return true
   }, [abrirBytes, serializar, refrescar, terminarApertura])
 
@@ -580,11 +585,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const entrar = useCallback(async (nombre: string, clave: string) => {
     const h = handle.current
     if (!h) throw new Error('No hay ninguna carpeta abierta.')
+    let estadoSabido: EstadoPuente | undefined
     if (h instanceof CarpetaPuente) {
       // Conexión directa: primero el puente comprueba el usuario y la contraseña
       const usuarioN = normalizarUsuario(nombre)
       h.ponerIdentidad({ usuario: usuarioN, credencial: await credencialPuente(usuarioN, clave) })
-      if ((await h.estado()) === 'sin_permiso') {
+      estadoSabido = await h.estado()
+      if (estadoSabido === 'sin_permiso') {
         h.ponerIdentidad(null)
         await pausa(500)
         throw new Error('Usuario o contraseña incorrectos.')
@@ -598,7 +605,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       throw new Error('Usuario o contraseña incorrectos.')
     }
     claveDatos.current = r.claveDatos
-    if (!(await abrirComo(datos, marca, Number(r.titular.slice(2))))) {
+    if (!(await abrirComo(datos, marca, Number(r.titular.slice(2)), estadoSabido))) {
       claveDatos.current = null
       throw new Error('Este usuario está desactivado. Habla con un administrador.')
     }
