@@ -89,7 +89,10 @@ export class CarpetaPuente implements Carpeta {
   private async llamar<T>(op: string, extra: Record<string, unknown> = {}): Promise<T> {
     const cuerpo = JSON.stringify({ op, ruta: this.ruta, usuario: this.sesion.id?.usuario, credencial: this.sesion.id?.credencial, ...extra })
     const grande = op === 'leer' || op === 'escribir'
-    const limite = grande ? 20_000 : 8_000
+    // Leer o guardar el archivo: 20 s más 5 s por cada MB (lo que se envía o el último tamaño conocido),
+    // para que un archivo grande no se corte a medias
+    const mb = Math.max(CarpetaPuente.mayorTamano, typeof extra.datos === 'string' ? (extra.datos.length * 3) / 4 : 0) / 1_048_576
+    const limite = grande ? 20_000 + Math.ceil(mb * 5_000) : 8_000
     const intentos = op === 'activar' ? 1 : 4
     let texto: string | null = null
     let estadoHttp = 0
@@ -146,6 +149,9 @@ export class CarpetaPuente implements Carpeta {
     return (await this.llamar<{ accesos: { usuario: string; admin: boolean }[] }>('accesos')).accesos
   }
 
+  /** Tamaño en bytes del mayor archivo leído o guardado (para el tiempo límite de las transferencias) */
+  static mayorTamano = 0
+
   /** Subcarpetas que ya se sabe que existen (para no preguntarlo cada vez) */
   private static conocidas = new Set<string>()
 
@@ -165,7 +171,9 @@ export class CarpetaPuente implements Carpeta {
 
   async leer(nombre: string): Promise<LecturaArchivo> {
     const j = await this.llamar<{ datos: string; modificado: number; marca: string }>('leer', { nombre })
-    return { datos: deB64(j.datos), modificado: j.modificado, marca: j.marca }
+    const datos = deB64(j.datos)
+    CarpetaPuente.mayorTamano = Math.max(CarpetaPuente.mayorTamano, datos.length)
+    return { datos, modificado: j.modificado, marca: j.marca }
   }
 
   async modificado(nombre: string) {

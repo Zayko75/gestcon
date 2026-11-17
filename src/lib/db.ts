@@ -240,9 +240,18 @@ export function registrarOperacion(db: Database, id: string, usuario: string, ti
   db.run('INSERT OR IGNORE INTO operaciones (id, usuario, tipo, registro) VALUES (?,?,?,?)', [id, usuario, tipo, registro])
 }
 
-/** Borra del registro las operaciones de hace más de 30 días */
-export function podarOperaciones(db: Database): void {
+/**
+ * Mantenimiento antes de guardar el archivo (se sube entero en cada guardado, así que su tamaño importa):
+ *  - Borra del registro las operaciones de hace más de 30 días. El registro solo sirve para combinar cambios
+ *    hechos a la vez por varios usuarios (segundos o minutos); sin podarlo crecía para siempre (≈ 7 MB al año).
+ *  - Si lo borrado deja mucho espacio libre dentro del archivo, lo compacta (VACUUM): sin eso el archivo
+ *    no se encoge aunque se borren filas.
+ */
+export function mantener(db: Database): void {
   db.run("DELETE FROM operaciones WHERE fecha < datetime('now', '-30 days')")
+  const libres = Number(db.exec('PRAGMA freelist_count')[0]?.values[0][0] ?? 0)
+  const paginas = Number(db.exec('PRAGMA page_count')[0]?.values[0][0] ?? 0)
+  if (libres > 64 && libres > paginas * 0.2) db.exec('VACUUM')
 }
 
 // ---------- Migraciones ----------

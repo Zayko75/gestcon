@@ -273,6 +273,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const lote = pendientes.current
             pendientes.current = []
             try {
+              bd.mantener(db.current!) // registro de operaciones podado y archivo compactado
               ultimoMod.current = await fs.escribirBytes(h, 'datos.sqlite', await serializar(db.current!))
             } catch (e) {
               pendientes.current = [...lote, ...pendientes.current]
@@ -400,6 +401,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (bd.versionEsquema(nueva) < VERSION_ESQUEMA) {
       await crearCopia(await fs.subcarpeta(h, 'backups'), bytes, 'antes-de-actualizar')
       const informe = bd.migrar(nueva)
+      bd.mantener(nueva)
       ultimoMod.current = await fs.escribirBytes(h, 'datos.sqlite', await serializar(nueva))
       if (informe) setInformeMigracion(informe)
     }
